@@ -1,2 +1,2 @@
-# extensions-ms-yarp
-Microsoft YARP extensions
+# extensions-dotnet-yarp
+A collection of of extensions for [dotnet YARP](https://github.com/dotnet/yarp)
