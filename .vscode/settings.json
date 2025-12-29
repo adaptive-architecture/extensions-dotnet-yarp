@@ -14,7 +14,8 @@
     "Roslynator",
     "sonarscanner",
     "temurin",
-    "Testcontainers"
+    "Testcontainers",
+    "Yarp"
   ],
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
