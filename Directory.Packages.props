@@ -4,9 +4,10 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup Condition="'$(CONFIGURATION)' == 'Release' And '$(BuildDocFx)' != 'true'">
+    <PackageVersion Include="AdaptArch.Extensions.Yarp.Auth" Version="0.0.0" />
+    <PackageVersion Include="AdaptArch.Extensions.Yarp.OpenApi" Version="0.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="AdaptArch.Common.Utilities" Version="0.13.1.2" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.1" />
