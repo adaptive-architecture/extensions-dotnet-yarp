@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "sonarsource.sonarlint-vscode",
+    "streetsidesoftware.code-spell-checker",
+    "ryanluker.vscode-coverage-gutters",
+    "editorconfig.editorconfig",
+    "usernamehw.errorlens",
+    "ms-dotnettools.vscodeintellicode-csharp"
+  ]
+}
