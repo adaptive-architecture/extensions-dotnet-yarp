@@ -2,6 +2,11 @@
   <Folder Name="/samples/">
     <Project Path="samples/Samples/Samples.csproj" />
   </Folder>
+  <Folder Name="/samples/OpenApiAggregation/">
+    <Project Path="samples/OpenApiAggregation/Gateway/Gateway.csproj" />
+    <Project Path="samples/OpenApiAggregation/ProductService/ProductService.csproj" />
+    <Project Path="samples/OpenApiAggregation/UserService/UserService.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/OpenApi/OpenApi.csproj" />
     <Project Path="src/Auth/Auth.csproj" />
