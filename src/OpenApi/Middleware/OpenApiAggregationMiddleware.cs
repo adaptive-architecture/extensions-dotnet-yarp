@@ -22,6 +22,11 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.Middleware;
 /// </summary>
 public sealed partial class OpenApiAggregationMiddleware
 {
+    private const string OpenApiJsonSuffix = "/openapi.json";
+    private const string OpenApiYamlSuffix = "/openapi.yaml";
+    private const string OpenApiYmlSuffix = "/openapi.yml";
+    private const string DefaultOpenApiPath = "/swagger/v1/swagger.json";
+
     private readonly RequestDelegate _next;
     private readonly string _basePath;
     private readonly ILogger _logger;
@@ -122,7 +127,7 @@ public sealed partial class OpenApiAggregationMiddleware
         {
             LogServiceListRequestError(ex);
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsync("Internal server error");
+            await context.Response.WriteAsync($"Internal server error: {ex.Message}");
         }
     }
 
@@ -145,6 +150,14 @@ public sealed partial class OpenApiAggregationMiddleware
 
             // Normalize service name (URL decode and normalize case)
             serviceName = Uri.UnescapeDataString(serviceName);
+
+            // Validate service name to prevent path traversal attacks
+            if (serviceName.Contains("..") || serviceName.Contains('/') || serviceName.Contains('\\'))
+            {
+                context.Response.StatusCode = 400;
+                await context.Response.WriteAsync("Invalid service name");
+                return;
+            }
 
             // Resolve services from DI
             var cache = context.RequestServices.GetRequiredService<HybridCache>();
@@ -191,7 +204,7 @@ public sealed partial class OpenApiAggregationMiddleware
         {
             LogSpecRequestError(serviceName, ex);
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsync("Internal server error");
+            await context.Response.WriteAsync($"Internal server error: {ex.Message}");
         }
     }
 
@@ -316,7 +329,7 @@ public sealed partial class OpenApiAggregationMiddleware
             return null;
         }
 
-        var openApiPath = routeMapping.ClusterOpenApiConfig.OpenApiPath ?? "/swagger/v1/swagger.json";
+        var openApiPath = routeMapping.ClusterOpenApiConfig.OpenApiPath ?? DefaultOpenApiPath;
         var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
 
         if (document == null)
@@ -493,21 +506,21 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         // Check if path ends with /openapi.{extension}
-        if (subPath.EndsWith("/openapi.json", StringComparison.OrdinalIgnoreCase))
+        if (subPath.EndsWith(OpenApiJsonSuffix, StringComparison.OrdinalIgnoreCase))
         {
-            var serviceName = subPath[..^"/openapi.json".Length];
+            var serviceName = subPath[..^OpenApiJsonSuffix.Length];
             return (serviceName, "json");
         }
 
-        if (subPath.EndsWith("/openapi.yaml", StringComparison.OrdinalIgnoreCase))
+        if (subPath.EndsWith(OpenApiYamlSuffix, StringComparison.OrdinalIgnoreCase))
         {
-            var serviceName = subPath[..^"/openapi.yaml".Length];
+            var serviceName = subPath[..^OpenApiYamlSuffix.Length];
             return (serviceName, "yaml");
         }
 
-        if (subPath.EndsWith("/openapi.yml", StringComparison.OrdinalIgnoreCase))
+        if (subPath.EndsWith(OpenApiYmlSuffix, StringComparison.OrdinalIgnoreCase))
         {
-            var serviceName = subPath[..^"/openapi.yml".Length];
+            var serviceName = subPath[..^OpenApiYmlSuffix.Length];
             return (serviceName, "yaml");
         }
 
