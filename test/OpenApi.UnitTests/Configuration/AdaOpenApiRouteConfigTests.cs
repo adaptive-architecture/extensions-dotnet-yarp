@@ -7,6 +7,9 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
 public class AdaOpenApiRouteConfigTests
 {
+    private static readonly JsonSerializerOptions SerializeOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly JsonSerializerOptions DeserializeOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
+
     [Fact]
     public void DefaultValues_AreSetCorrectly()
     {
@@ -29,15 +32,8 @@ public class AdaOpenApiRouteConfigTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var deserialized = JsonSerializer.Deserialize<AdaOpenApiRouteConfig>(json, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true
-        });
+        var json = JsonSerializer.Serialize(config, SerializeOptions);
+        var deserialized = JsonSerializer.Deserialize<AdaOpenApiRouteConfig>(json, DeserializeOptions);
 
         // Assert
         Assert.NotNull(deserialized);
@@ -56,15 +52,8 @@ public class AdaOpenApiRouteConfigTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var deserialized = JsonSerializer.Deserialize<AdaOpenApiRouteConfig>(json, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true
-        });
+        var json = JsonSerializer.Serialize(config, SerializeOptions);
+        var deserialized = JsonSerializer.Deserialize<AdaOpenApiRouteConfig>(json, DeserializeOptions);
 
         // Assert
         Assert.NotNull(deserialized);

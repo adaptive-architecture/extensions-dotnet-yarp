@@ -237,7 +237,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         return updatedSchema;
     }
 
-    private OpenApiPathItem? UpdatePathItemReferences(IOpenApiPathItem? pathItem, Dictionary<string, string> nameMap)
+    private static OpenApiPathItem? UpdatePathItemReferences(IOpenApiPathItem? pathItem, Dictionary<string, string> nameMap)
     {
         if (pathItem == null)
         {

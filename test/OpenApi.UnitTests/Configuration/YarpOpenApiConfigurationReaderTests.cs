@@ -11,6 +11,8 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
 public class YarpOpenApiConfigurationReaderTests
 {
+    private static readonly JsonSerializerOptions SerializeOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     private readonly IProxyConfigProvider _proxyConfigProvider;
     private readonly ILogger<YarpOpenApiConfigurationReader> _logger;
 
@@ -29,10 +31,7 @@ public class YarpOpenApiConfigurationReaderTests
             OpenApiPath = "/api/v1/openapi.json",
             Prefix = "UserService"
         };
-        var metadataJson = JsonSerializer.Serialize(clusterConfig, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var metadataJson = JsonSerializer.Serialize(clusterConfig, SerializeOptions);
 
         var cluster = new ClusterConfig
         {
@@ -125,10 +124,7 @@ public class YarpOpenApiConfigurationReaderTests
             ServiceName = "User Management",
             Enabled = true
         };
-        var metadataJson = JsonSerializer.Serialize(routeConfig, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        var metadataJson = JsonSerializer.Serialize(routeConfig, SerializeOptions);
 
         var route = new RouteConfig
         {
