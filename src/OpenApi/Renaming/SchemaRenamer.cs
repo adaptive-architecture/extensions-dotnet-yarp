@@ -134,6 +134,11 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         return nameMap;
     }
 
+    private static List<IOpenApiSchema> UpdateSchemaList(IEnumerable<IOpenApiSchema> schemas, Dictionary<string, string> nameMap)
+    {
+        return schemas.Select(s => UpdateSchemaReferences(s, nameMap)!).ToList();
+    }
+
     private static IOpenApiSchema? UpdateSchemaReferences(IOpenApiSchema? schema, Dictionary<string, string> nameMap)
     {
         if (schema == null)
@@ -196,31 +201,19 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         // Update AllOf
         if (schema.AllOf != null)
         {
-            updatedSchema.AllOf = [];
-            foreach (var subSchema in schema.AllOf)
-            {
-                updatedSchema.AllOf.Add(UpdateSchemaReferences(subSchema, nameMap)!);
-            }
+            updatedSchema.AllOf = UpdateSchemaList(schema.AllOf, nameMap);
         }
 
         // Update OneOf
         if (schema.OneOf != null)
         {
-            updatedSchema.OneOf = [];
-            foreach (var subSchema in schema.OneOf)
-            {
-                updatedSchema.OneOf.Add(UpdateSchemaReferences(subSchema, nameMap)!);
-            }
+            updatedSchema.OneOf = UpdateSchemaList(schema.OneOf, nameMap);
         }
 
         // Update AnyOf
         if (schema.AnyOf != null)
         {
-            updatedSchema.AnyOf = [];
-            foreach (var subSchema in schema.AnyOf)
-            {
-                updatedSchema.AnyOf.Add(UpdateSchemaReferences(subSchema, nameMap)!);
-            }
+            updatedSchema.AnyOf = UpdateSchemaList(schema.AnyOf, nameMap);
         }
 
         // Update Not
@@ -238,11 +231,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         // Update Properties
         if (schema.Properties != null)
         {
-            updatedSchema.Properties = new Dictionary<string, IOpenApiSchema>();
-            foreach (var (propName, propSchema) in schema.Properties)
-            {
-                updatedSchema.Properties[propName] = UpdateSchemaReferences(propSchema, nameMap)!;
-            }
+            updatedSchema.Properties = schema.Properties.ToDictionary(p => p.Key, p => UpdateSchemaReferences(p.Value, nameMap)!);
         }
 
         return updatedSchema;

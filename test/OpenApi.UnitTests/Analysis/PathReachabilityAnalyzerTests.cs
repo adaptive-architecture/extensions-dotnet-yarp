@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using NSubstitute;
 using Xunit;
-using global::Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Analysis;
 

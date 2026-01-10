@@ -179,6 +179,42 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         return pathItem;
     }
 
+    private static void AnalyzeOperationSchemas(OpenApiOperation operation, Queue<string> schemasToAnalyze)
+    {
+        // Check request body
+        if (operation.RequestBody?.Content != null)
+        {
+            foreach (var mediaType in operation.RequestBody.Content.Values)
+            {
+                AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
+            }
+        }
+
+        // Check parameters
+        if (operation.Parameters != null)
+        {
+            foreach (var parameter in operation.Parameters)
+            {
+                AddSchemaReferences(parameter.Schema, schemasToAnalyze);
+            }
+        }
+
+        // Check responses
+        if (operation.Responses != null)
+        {
+            foreach (var response in operation.Responses.Values)
+            {
+                if (response.Content != null)
+                {
+                    foreach (var mediaType in response.Content.Values)
+                    {
+                        AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
+                    }
+                }
+            }
+        }
+    }
+
     private HashSet<string> AnalyzeSchemaDependencies(OpenApiPaths paths, IDictionary<string, IOpenApiSchema>? componentSchemas)
     {
         var usedSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -191,38 +227,7 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
 
             foreach (var operation in pathItem.Operations.Values)
             {
-                // Check request body
-                if (operation.RequestBody?.Content != null)
-                {
-                    foreach (var mediaType in operation.RequestBody.Content.Values)
-                    {
-                        AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
-                    }
-                }
-
-                // Check parameters
-                if (operation.Parameters != null)
-                {
-                    foreach (var parameter in operation.Parameters)
-                    {
-                        AddSchemaReferences(parameter.Schema, schemasToAnalyze);
-                    }
-                }
-
-                // Check responses
-                if (operation.Responses != null)
-                {
-                    foreach (var response in operation.Responses.Values)
-                    {
-                        if (response.Content != null)
-                        {
-                            foreach (var mediaType in response.Content.Values)
-                            {
-                                AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
-                            }
-                        }
-                    }
-                }
+                AnalyzeOperationSchemas(operation, schemasToAnalyze);
             }
         }
 
@@ -244,6 +249,14 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         }
 
         return usedSchemas;
+    }
+
+    private static void AddSchemaList(IEnumerable<IOpenApiSchema> schemas, Queue<string> schemasToAnalyze)
+    {
+        foreach (var s in schemas)
+        {
+            AddSchemaReferences(s, schemasToAnalyze);
+        }
     }
 
     private static void AddSchemaReferences(IOpenApiSchema? schema, Queue<string> schemasToAnalyze)
@@ -269,35 +282,23 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         // Object properties
         if (schema.Properties != null)
         {
-            foreach (var property in schema.Properties.Values)
-            {
-                AddSchemaReferences(property, schemasToAnalyze);
-            }
+            AddSchemaList(schema.Properties.Values, schemasToAnalyze);
         }
 
         // AllOf, OneOf, AnyOf
         if (schema.AllOf != null)
         {
-            foreach (var subSchema in schema.AllOf)
-            {
-                AddSchemaReferences(subSchema, schemasToAnalyze);
-            }
+            AddSchemaList(schema.AllOf, schemasToAnalyze);
         }
 
         if (schema.OneOf != null)
         {
-            foreach (var subSchema in schema.OneOf)
-            {
-                AddSchemaReferences(subSchema, schemasToAnalyze);
-            }
+            AddSchemaList(schema.OneOf, schemasToAnalyze);
         }
 
         if (schema.AnyOf != null)
         {
-            foreach (var subSchema in schema.AnyOf)
-            {
-                AddSchemaReferences(subSchema, schemasToAnalyze);
-            }
+            AddSchemaList(schema.AnyOf, schemasToAnalyze);
         }
 
         // Not schema

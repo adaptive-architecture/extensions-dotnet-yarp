@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using NSubstitute;
 using Xunit;
-using global::Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
@@ -174,7 +174,7 @@ public class YarpOpenApiConfigurationReaderTests
             new TestDisposable();
     }
 
-    private class TestDisposable : IDisposable
+    private sealed class TestDisposable : IDisposable
     {
         public void Dispose() { }
     }
