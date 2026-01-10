@@ -33,6 +33,34 @@ public class OpenApiAggregationOptions
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
+    /// Gets or sets the cache duration for aggregated service specifications.
+    /// </summary>
+    /// <remarks>
+    /// Controls how long aggregated OpenAPI specs are cached in the middleware.
+    /// Defaults to 5 minutes.
+    /// </remarks>
+    public TimeSpan AggregatedSpecCacheDuration { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Gets or sets the cache duration for failed fetch attempts.
+    /// </summary>
+    /// <remarks>
+    /// When fetching an OpenAPI document fails, cache the failure for this duration
+    /// to avoid repeatedly hammering failing services.
+    /// Defaults to 1 minute.
+    /// </remarks>
+    public TimeSpan FailureCacheDuration { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Gets or sets the maximum payload size in bytes for cached entries.
+    /// </summary>
+    /// <remarks>
+    /// OpenAPI documents larger than this will not be cached.
+    /// Defaults to 1 MB.
+    /// </remarks>
+    public int MaximumCachePayloadBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>
     /// Gets or sets the maximum number of concurrent document fetches.
     /// </summary>
     /// <remarks>

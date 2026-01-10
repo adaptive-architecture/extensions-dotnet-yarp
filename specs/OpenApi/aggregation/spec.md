@@ -73,7 +73,7 @@ The aggregation follows a pipeline architecture with distinct stages:
 
 - **YARP** (Yarp.ReverseProxy): Core reverse proxy functionality, route configuration
 - **Microsoft.OpenApi**: OpenAPI document parsing, manipulation, and serialization
-- **Microsoft.Extensions.Caching.Memory**: In-memory document caching
+- **Microsoft.Extensions.Caching.Hybrid**: Hybrid caching (L1 in-memory + optional L2 distributed)
 - **System.Text.Json**: Source-generated JSON serialization for configuration
 - **Microsoft.Extensions.Http**: HTTP client factory for downstream requests
 
@@ -86,6 +86,15 @@ services.AddYarpOpenApiAggregation(options =>
 {
     // Cache fetched documents for 5 minutes
     options.CacheDuration = TimeSpan.FromMinutes(5);
+    
+    // Cache aggregated specs for 5 minutes (NEW)
+    options.AggregatedSpecCacheDuration = TimeSpan.FromMinutes(5);
+    
+    // Cache failures for shorter duration (NEW)
+    options.FailureCacheDuration = TimeSpan.FromMinutes(1);
+    
+    // Maximum cache payload size (NEW)
+    options.MaximumCachePayloadBytes = 1024 * 1024;
     
     // Default path for OpenAPI documents
     options.DefaultOpenApiPath = "/swagger/v1/swagger.json";
@@ -139,6 +148,39 @@ This exposes endpoints:
 }
 ```
 
+### Cache Invalidation API
+
+```csharp
+// Inject the invalidation service
+public class ConfigurationChangeHandler
+{
+    private readonly IOpenApiCacheInvalidator _cacheInvalidator;
+    
+    public ConfigurationChangeHandler(IOpenApiCacheInvalidator cacheInvalidator)
+    {
+        _cacheInvalidator = cacheInvalidator;
+    }
+    
+    // Invalidate specific service
+    public async Task OnServiceConfigChanged(string serviceName)
+    {
+        await _cacheInvalidator.InvalidateServiceAsync(serviceName);
+    }
+    
+    // Invalidate specific cluster
+    public async Task OnClusterConfigChanged(string clusterId)
+    {
+        await _cacheInvalidator.InvalidateClusterAsync(clusterId);
+    }
+    
+    // Invalidate all cache entries
+    public async Task OnGlobalConfigChanged()
+    {
+        await _cacheInvalidator.InvalidateAllAsync();
+    }
+}
+```
+
 ### Extensibility Interfaces
 
 - **`IRouteTransformAnalyzer`**: Implement custom YARP transform analysis logic
@@ -147,12 +189,16 @@ This exposes endpoints:
 - **`IOpenApiMerger`**: Implement custom document merging logic
 - **`IOpenApiDocumentPruner`**: Implement custom pruning strategies
 - **`IOpenApiDocumentFetcher`**: Implement custom fetching (e.g., authenticated endpoints)
+- **`IOpenApiCacheInvalidator`**: Service for programmatic cache invalidation
 
 ## Configuration
 
 ### Global Options (`OpenApiAggregationOptions`)
 
 - **`CacheDuration`**: Duration to cache fetched documents (default: 5 minutes)
+- **`AggregatedSpecCacheDuration`**: Duration to cache aggregated service specs (default: 5 minutes)
+- **`FailureCacheDuration`**: Duration to cache fetch failures (default: 1 minute)
+- **`MaximumCachePayloadBytes`**: Maximum size for cached entries in bytes (default: 1 MB)
 - **`DefaultOpenApiPath`**: Default path for OpenAPI documents (default: `/swagger/v1/swagger.json`)
 - **`FallbackPaths`**: Paths to try if default fails (default: several common paths)
 - **`EnableAutoDiscovery`**: Auto-discover services without explicit metadata (default: true)
@@ -359,35 +405,40 @@ Configured in cluster metadata under `Ada.OpenApi` key:
 - ❌ Requires users to configure prefixes (optional but recommended)
 - ❌ Doesn't detect truly identical schemas for deduplication
 
-### Decision 4: Memory Caching with IMemoryCache
+### Decision 4: HybridCache for Modern Caching Strategy
 
-**Context**: Fetching OpenAPI documents from downstream services on every request would be slow and increase load on downstream services. A caching strategy was needed.
+**Context**: Fetching OpenAPI documents from downstream services on every request would be slow and increase load on downstream services. A caching strategy was needed that could scale from single-instance to multi-instance deployments.
 
 **Options Considered**:
 1. **No caching** (fetch every time)
 2. **In-memory caching** with `IMemoryCache`
-3. **Distributed caching** (Redis, SQL Server)
-4. **File-based caching** on disk
-5. **Application startup caching** (load once at startup)
+3. **HybridCache** (L1 in-memory + optional L2 distributed)
+4. **Distributed caching only** (Redis, SQL Server)
+5. **File-based caching** on disk
 
-**Decision**: In-memory caching with `IMemoryCache` (Option 2)
+**Decision**: HybridCache with configurable L1/L2 strategy (Option 3)
 
 **Rationale**:
-- **Performance**: Dramatically reduces downstream calls and response latency
-- **Simple**: No external dependencies or infrastructure
-- **Standard**: Uses .NET's built-in `IMemoryCache` abstraction
-- **Configurable**: Cache duration is user-adjustable
-- **Appropriate**: OpenAPI specs change infrequently (minutes to hours)
+- **Performance**: Fast L1 in-memory cache for optimal performance
+- **Scalability**: Optional L2 distributed cache for multi-instance scenarios
+- **Built-in stampede protection**: Automatic coordination to prevent thundering herd
+- **Tag-based invalidation**: Invalidate by service, cluster, or globally
+- **Modern .NET API**: Async-first, optimized for high-throughput scenarios
+- **Future-proof**: Distributed cache can be added later without code changes
+- **Simplified code**: Eliminates need for manual semaphore-based coordination
 
 **Consequences**:
 - ✅ Fast cached responses (<10ms)
+- ✅ Built-in stampede protection (no manual semaphores needed)
+- ✅ Tag-based invalidation for granular cache control
 - ✅ Reduced load on downstream services (95%+ reduction with default cache duration)
-- ✅ No external cache infrastructure needed
-- ❌ Cache not shared across multiple gateway instances
-- ❌ Cache lost on application restart (acceptable for specs)
-- ❌ Memory usage scales with number of services (negligible in practice)
+- ✅ Optional distributed cache for multi-instance deployments
+- ✅ Simpler implementation (~40 lines of semaphore code removed)
+- ✅ Public API for programmatic cache invalidation
+- ❌ Requires .NET 10.0+ (HybridCache not available in older versions)
+- ❌ Cache still not shared across instances without explicit L2 configuration
 
-**Future consideration**: Provide option for distributed caching for multi-instance deployments.
+**Migration from IMemoryCache**: Previous version used `IMemoryCache` with manual semaphore coordination. HybridCache simplifies this by providing built-in stampede protection and tag-based invalidation.
 
 ### Decision 5: Middleware-Based Serving
 

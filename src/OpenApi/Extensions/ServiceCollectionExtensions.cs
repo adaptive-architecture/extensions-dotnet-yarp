@@ -1,11 +1,12 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
+using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using AdaptArch.Extensions.Yarp.OpenApi.Fetching;
 using AdaptArch.Extensions.Yarp.OpenApi.Merging;
 using AdaptArch.Extensions.Yarp.OpenApi.Pruning;
 using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -28,8 +29,21 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Register memory cache if not already registered
-        services.TryAddSingleton<IMemoryCache, MemoryCache>();
+        // Configure options first so we can use them for HybridCache configuration
+        var aggregationOptions = new OpenApiAggregationOptions();
+        configure?.Invoke(aggregationOptions);
+
+        // Register HybridCache with configuration from OpenApiAggregationOptions
+        services.AddHybridCache(options =>
+        {
+            options.MaximumPayloadBytes = aggregationOptions.MaximumCachePayloadBytes;
+            options.MaximumKeyLength = 1024;
+            options.DefaultEntryOptions = new HybridCacheEntryOptions
+            {
+                Expiration = aggregationOptions.CacheDuration,
+                LocalCacheExpiration = aggregationOptions.CacheDuration
+            };
+        });
 
         // Register HTTP client factory if not already registered
         services.AddHttpClient();
@@ -51,6 +65,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IOpenApiDocumentPruner, OpenApiDocumentPruner>();
         services.TryAddSingleton<ISchemaRenamer, SchemaRenamer>();
         services.TryAddSingleton<IOpenApiMerger, OpenApiMerger>();
+
+        // Register cache invalidation service
+        services.TryAddSingleton<IOpenApiCacheInvalidator, OpenApiCacheInvalidator>();
 
         return services;
     }

@@ -1,5 +1,5 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
@@ -29,31 +29,32 @@ public interface IOpenApiDocumentFetcher
 public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMemoryCache _cache;
+    private readonly HybridCache _cache;
     private readonly IOptionsMonitor<OpenApiAggregationOptions> _optionsMonitor;
     private readonly ILogger _logger;
-    private readonly SemaphoreSlim _concurrencySemaphore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenApiDocumentFetcher"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="cache">The memory cache for storing fetched documents.</param>
+    /// <param name="cache">The hybrid cache for storing fetched documents.</param>
     /// <param name="optionsMonitor">The options monitor for configuration.</param>
     /// <param name="logger">The logger instance.</param>
     public OpenApiDocumentFetcher(
         IHttpClientFactory httpClientFactory,
-        IMemoryCache cache,
+        HybridCache cache,
         IOptionsMonitor<OpenApiAggregationOptions> optionsMonitor,
         ILogger<OpenApiDocumentFetcher> logger)
     {
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(optionsMonitor);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _httpClientFactory = httpClientFactory;
         _cache = cache;
         _optionsMonitor = optionsMonitor;
         _logger = logger;
-
-        var options = _optionsMonitor.CurrentValue;
-        _concurrencySemaphore = new SemaphoreSlim(options.MaxConcurrentFetches, options.MaxConcurrentFetches);
     }
 
     /// <inheritdoc/>
@@ -70,73 +71,57 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
         }
 
         var options = _optionsMonitor.CurrentValue;
-        var cacheKey = $"openapi:{baseUrl}:{openApiPath}";
+        var cacheKey = $"{baseUrl}:{openApiPath}";
+        var tags = new[] { "openapi", $"baseUrl:{baseUrl}" };
 
-        // Check cache first
-        if (_cache.TryGetValue<OpenApiDocument>(cacheKey, out var cachedDocument))
+        var entryOptions = new HybridCacheEntryOptions
         {
-            LogCacheHit(baseUrl, openApiPath);
-            return cachedDocument;
-        }
+            Expiration = options.CacheDuration,
+            LocalCacheExpiration = options.CacheDuration
+        };
 
-        // Limit concurrent fetches
-        await _concurrencySemaphore.WaitAsync(cancellationToken);
-        try
+        // HybridCache provides automatic stampede protection
+        return await _cache.GetOrCreateAsync(
+            cacheKey,
+            async cancel => await FetchDocumentFromSourceAsync(baseUrl, openApiPath, cancel),
+            entryOptions,
+            tags,
+            cancellationToken
+        );
+    }
+
+    private async Task<OpenApiDocument?> FetchDocumentFromSourceAsync(string baseUrl, string openApiPath, CancellationToken cancellationToken)
+    {
+        var options = _optionsMonitor.CurrentValue;
+
+        // Try primary path first
+        var document = await TryFetchFromPathAsync(baseUrl, openApiPath, cancellationToken);
+
+        // If primary path failed, try fallback paths
+        if (document == null && options.FallbackPaths.Length > 0)
         {
-            // Double-check cache after acquiring semaphore
-            if (_cache.TryGetValue(cacheKey, out cachedDocument))
+            LogTryingFallbackPaths(openApiPath, baseUrl);
+            foreach (var fallbackPath in options.FallbackPaths)
             {
-                LogCacheHitAfterSemaphore(baseUrl, openApiPath);
-                return cachedDocument;
-            }
-
-            // Try primary path first
-            var document = await TryFetchFromPathAsync(baseUrl, openApiPath, cancellationToken);
-
-            // If primary path failed, try fallback paths
-            if (document == null && options.FallbackPaths.Length > 0)
-            {
-                LogTryingFallbackPaths(openApiPath, baseUrl);
-                foreach (var fallbackPath in options.FallbackPaths)
+                document = await TryFetchFromPathAsync(baseUrl, fallbackPath, cancellationToken);
+                if (document != null)
                 {
-                    document = await TryFetchFromPathAsync(baseUrl, fallbackPath, cancellationToken);
-                    if (document != null)
-                    {
-                        LogFallbackPathSuccess(fallbackPath, baseUrl);
-                        break;
-                    }
+                    LogFallbackPathSuccess(fallbackPath, baseUrl);
+                    break;
                 }
             }
-
-            // Cache the result (even if null, to avoid repeated failed fetches)
-            if (document != null)
-            {
-                var cacheEntryOptions = new MemoryCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = options.CacheDuration,
-                    Size = 1 // Simple size calculation for memory management
-                };
-                _cache.Set(cacheKey, document, cacheEntryOptions);
-                LogDocumentCached(baseUrl, openApiPath, options.CacheDuration);
-            }
-            else
-            {
-                // Cache failures for a shorter duration to avoid hammering failing services
-                var failureCacheOptions = new MemoryCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1),
-                    Size = 1
-                };
-                _cache.Set(cacheKey, (OpenApiDocument?)null, failureCacheOptions);
-                LogFetchFailedAllPaths(baseUrl, openApiPath);
-            }
-
-            return document;
         }
-        finally
+
+        if (document != null)
         {
-            _concurrencySemaphore.Release();
+            LogDocumentFetched(baseUrl, openApiPath);
         }
+        else
+        {
+            LogFetchFailedAllPaths(baseUrl, openApiPath);
+        }
+
+        return document;
     }
 
     private async Task<OpenApiDocument?> TryFetchFromPathAsync(string baseUrl, string path, CancellationToken cancellationToken)
@@ -200,20 +185,14 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
     }
 
     // Source-generated logging methods
-    [LoggerMessage(Level = LogLevel.Debug, Message = "OpenAPI document cache hit for {BaseUrl}{Path}")]
-    private partial void LogCacheHit(string baseUrl, string path);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "OpenAPI document cache hit (after semaphore) for {BaseUrl}{Path}")]
-    private partial void LogCacheHitAfterSemaphore(string baseUrl, string path);
-
     [LoggerMessage(Level = LogLevel.Information, Message = "Primary OpenAPI path {Path} failed for {BaseUrl}, trying fallback paths")]
     private partial void LogTryingFallbackPaths(string path, string baseUrl);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Successfully fetched OpenAPI document from fallback path {Path} for {BaseUrl}")]
     private partial void LogFallbackPathSuccess(string path, string baseUrl);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "OpenAPI document cached for {BaseUrl}{Path} (expires in {Duration})")]
-    private partial void LogDocumentCached(string baseUrl, string path, TimeSpan duration);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Successfully fetched OpenAPI document from {BaseUrl}{Path}")]
+    private partial void LogDocumentFetched(string baseUrl, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to fetch OpenAPI document from {BaseUrl}{Path} (all paths attempted)")]
     private partial void LogFetchFailedAllPaths(string baseUrl, string path);

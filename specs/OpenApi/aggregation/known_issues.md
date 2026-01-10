@@ -11,7 +11,7 @@
 | No real-time config updates | Low | Changes to downstream specs require cache expiration | Reduce `CacheDuration` option, or wait for cache expiration (default 5 minutes) |
 | Schema transformation limited to prefixing | Low | Cannot perform complex schema modifications (field filtering, transformation) | Implement custom `ISchemaRenamer` for advanced scenarios |
 | No built-in authentication for fetching | Medium | Cannot fetch from authenticated downstream endpoints out-of-box | Implement custom `IOpenApiDocumentFetcher` with authentication headers |
-| Single-instance in-memory caching | Low | Cache not shared across multiple gateway instances | Each instance maintains its own cache; consider custom fetcher with distributed cache for high-scale scenarios |
+| L1-only caching by default | Low | Cache not shared across instances without L2 configuration | Configure IDistributedCache (Redis, SQL Server, Postgres) for multi-instance scenarios - no code changes needed |
 | JSON-in-JSON metadata format | Low | Awkward configuration syntax, no compile-time validation | Use careful JSON escaping; future versions may support strongly-typed config section |
 | Limited OpenAPI 3.1 support | Low | May not handle newest OpenAPI 3.1 features fully | Use OpenAPI 3.0 specs; OpenAPI 3.1 support is partial and depends on Microsoft.OpenApi library |
 | No GraphQL schema support | Low | Cannot aggregate GraphQL schemas | Use separate GraphQL federation tools; this extension is OpenAPI-specific |
@@ -52,10 +52,10 @@ If you discover a bug, please report it via GitHub issues with:
   - **Effort**: Medium (token management, auth scheme support)
   - **Benefit**: Reduces need for custom `IOpenApiDocumentFetcher` implementations
 
-- [ ] **Distributed Caching**: Support for Redis, SQL Server distributed caches
-  - **Rationale**: Share cache across multiple gateway instances
-  - **Effort**: Medium (abstract cache provider, implement Redis/SQL options)
-  - **Benefit**: Better performance in multi-instance deployments
+- [x] **Distributed Caching**: Support for Redis, SQL Server distributed caches *(Completed)*
+  - **Status**: HybridCache supports L2 distributed caching out-of-box
+  - **Configuration**: Just register `IDistributedCache` implementation
+  - **Benefit**: Multi-instance cache sharing with zero code changes
 
 - [ ] **Configuration Validation**: Validate metadata at startup
   - **Rationale**: Catch config errors early rather than at runtime
@@ -239,6 +239,8 @@ If you'd like to contribute improvements:
 - ✅ **Core Implementation**: All major components (Completed in v1.0.0)
 - ✅ **Unit Test Suite**: 10 test files with comprehensive coverage (Completed in v1.0.0)
 - ✅ **Basic Sample Application**: UserService, ProductService, Gateway (Completed in v1.0.0)
+- ✅ **HybridCache Migration**: Modernized caching with built-in stampede protection, tag-based invalidation, and optional distributed cache (Completed in v1.1.0)
+- ✅ **Cache Invalidation API**: Public API for programmatic cache invalidation (Completed in v1.1.0)
 
 ## Compatibility Notes
 

@@ -8,8 +8,10 @@ using AdaptArch.Extensions.Yarp.OpenApi.Merging;
 using AdaptArch.Extensions.Yarp.OpenApi.Pruning;
 using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Middleware;
@@ -22,42 +24,21 @@ public sealed partial class OpenApiAggregationMiddleware
     private readonly RequestDelegate _next;
     private readonly string _basePath;
     private readonly ILogger _logger;
-    private readonly IYarpOpenApiConfigurationReader _configReader;
-    private readonly IServiceSpecificationAnalyzer _serviceAnalyzer;
-    private readonly IOpenApiDocumentFetcher _documentFetcher;
-    private readonly IPathReachabilityAnalyzer _reachabilityAnalyzer;
-    private readonly IOpenApiDocumentPruner _documentPruner;
-    private readonly ISchemaRenamer _schemaRenamer;
-    private readonly IOpenApiMerger _documentMerger;
-    private readonly IMemoryCache _cache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenApiAggregationMiddleware"/> class.
     /// </summary>
+    /// <param name="next">The next middleware in the pipeline.</param>
+    /// <param name="basePath">The base path for OpenAPI aggregation endpoints.</param>
+    /// <param name="logger">The logger instance.</param>
     public OpenApiAggregationMiddleware(
         RequestDelegate next,
         string basePath,
-        ILogger<OpenApiAggregationMiddleware> logger,
-        IYarpOpenApiConfigurationReader configReader,
-        IServiceSpecificationAnalyzer serviceAnalyzer,
-        IOpenApiDocumentFetcher documentFetcher,
-        IPathReachabilityAnalyzer reachabilityAnalyzer,
-        IOpenApiDocumentPruner documentPruner,
-        ISchemaRenamer schemaRenamer,
-        IOpenApiMerger documentMerger,
-        IMemoryCache cache)
+        ILogger<OpenApiAggregationMiddleware> logger)
     {
         _next = next;
         _basePath = basePath;
         _logger = logger;
-        _configReader = configReader;
-        _serviceAnalyzer = serviceAnalyzer;
-        _documentFetcher = documentFetcher;
-        _reachabilityAnalyzer = reachabilityAnalyzer;
-        _documentPruner = documentPruner;
-        _schemaRenamer = schemaRenamer;
-        _documentMerger = documentMerger;
-        _cache = cache;
     }
 
     /// <summary>
@@ -99,8 +80,11 @@ public sealed partial class OpenApiAggregationMiddleware
         {
             LogHandlingServiceListRequest();
 
+            // Resolve service analyzer from DI
+            var serviceAnalyzer = context.RequestServices.GetRequiredService<IServiceSpecificationAnalyzer>();
+
             // Analyze services from YARP configuration
-            var serviceSpecs = _serviceAnalyzer.AnalyzeServices();
+            var serviceSpecs = serviceAnalyzer.AnalyzeServices();
             var serviceNames = serviceSpecs.Select(s => s.ServiceName).Distinct().ToList();
 
             LogFoundServices(serviceNames.Count, String.Join(", ", serviceNames));
@@ -140,17 +124,28 @@ public sealed partial class OpenApiAggregationMiddleware
             // Normalize service name (URL decode and normalize case)
             serviceName = Uri.UnescapeDataString(serviceName);
 
-            // Check cache first
-            var cacheKey = $"openapi_spec_{serviceName}";
-            if (_cache.TryGetValue<OpenApiDocument>(cacheKey, out var cachedDoc) && cachedDoc != null)
-            {
-                LogReturningCachedSpec(serviceName);
-                await WriteOpenApiResponse(context, cachedDoc);
-                return;
-            }
+            // Resolve services from DI
+            var cache = context.RequestServices.GetRequiredService<HybridCache>();
+            var optionsMonitor = context.RequestServices.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>();
 
-            // Aggregate the OpenAPI spec for this service
-            var aggregatedDoc = await AggregateServiceSpecificationAsync(serviceName);
+            // Use HybridCache with automatic stampede protection
+            var cacheKey = $"openapi_spec_{serviceName}";
+            var tags = new[] { "openapi_spec", $"service:{serviceName}" };
+
+            var options = optionsMonitor.CurrentValue;
+            var entryOptions = new HybridCacheEntryOptions
+            {
+                Expiration = options.AggregatedSpecCacheDuration,
+                LocalCacheExpiration = options.AggregatedSpecCacheDuration
+            };
+
+            var aggregatedDoc = await cache.GetOrCreateAsync(
+                cacheKey,
+                async cancel => await AggregateServiceSpecificationAsync(context.RequestServices, serviceName, cancel),
+                entryOptions,
+                tags,
+                context.RequestAborted
+            );
 
             if (aggregatedDoc == null)
             {
@@ -159,9 +154,6 @@ public sealed partial class OpenApiAggregationMiddleware
                 await context.Response.WriteAsync($"Service '{serviceName}' not found or failed to aggregate");
                 return;
             }
-
-            // Cache the result for 5 minutes
-            _cache.Set(cacheKey, aggregatedDoc, TimeSpan.FromMinutes(5));
 
             LogAggregationSuccess(serviceName);
             await WriteOpenApiResponse(context, aggregatedDoc);
@@ -177,17 +169,20 @@ public sealed partial class OpenApiAggregationMiddleware
     /// <summary>
     /// Aggregates the OpenAPI specification for a specific service.
     /// </summary>
-    private async Task<OpenApiDocument?> AggregateServiceSpecificationAsync(string serviceName)
+    /// <param name="serviceProvider">The service provider to resolve dependencies.</param>
+    /// <param name="serviceName">The name of the service to aggregate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task<OpenApiDocument?> AggregateServiceSpecificationAsync(
+        IServiceProvider serviceProvider,
+        string serviceName,
+        CancellationToken cancellationToken)
     {
         LogStartingAggregation(serviceName);
 
-        // Analyze services and find matching service
-        // Support both exact match and kebab-case URL matching
-        var serviceSpecs = _serviceAnalyzer.AnalyzeServices();
-        var serviceSpec = serviceSpecs.FirstOrDefault(s =>
-            String.Equals(s.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase) ||
-            String.Equals(ToKebabCase(s.ServiceName), serviceName, StringComparison.OrdinalIgnoreCase));
+        var serviceAnalyzer = serviceProvider.GetRequiredService<IServiceSpecificationAnalyzer>();
+        var documentMerger = serviceProvider.GetRequiredService<IOpenApiMerger>();
 
+        var serviceSpec = FindServiceSpecification(serviceAnalyzer, serviceName);
         if (serviceSpec == null)
         {
             LogServiceSpecNotFound(serviceName);
@@ -196,85 +191,7 @@ public sealed partial class OpenApiAggregationMiddleware
 
         LogFoundRoutes(serviceSpec.Routes.Count, serviceName);
 
-        // Process each route: fetch, analyze, prune, rename
-        var processedDocuments = new List<OpenApiDocument>();
-
-        foreach (var routeMapping in serviceSpec.Routes)
-        {
-            try
-            {
-                var routeId = routeMapping.Route.RouteId;
-                var clusterId = routeMapping.Cluster.ClusterId;
-
-                LogProcessingRoute(routeId, clusterId);
-
-                // Get base URL from cluster destinations (use first destination)
-                var destination = routeMapping.Cluster.Destinations?.FirstOrDefault().Value;
-                if (destination == null)
-                {
-                    LogNoDestinations(clusterId);
-                    continue;
-                }
-
-                var baseUrl = destination.Address?.TrimEnd('/');
-                if (String.IsNullOrWhiteSpace(baseUrl))
-                {
-                    LogNoDestinationAddress(clusterId);
-                    continue;
-                }
-
-                // Get OpenAPI path from cluster metadata
-                var openApiPath = routeMapping.ClusterOpenApiConfig.OpenApiPath ?? "/swagger/v1/swagger.json";
-
-                // Fetch OpenAPI document
-                var document = await _documentFetcher.FetchDocumentAsync(baseUrl, openApiPath);
-                if (document == null)
-                {
-                    LogFetchFailed(clusterId);
-                    continue;
-                }
-
-                LogFetchedDocument(document.Paths?.Count ?? 0);
-
-                // Analyze path reachability
-                var reachabilityResult = _reachabilityAnalyzer.AnalyzePathReachability(document, routeMapping);
-                LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
-
-                // Prune unreachable paths and unused components
-                var prunedDocument = _documentPruner.PruneDocument(document, reachabilityResult);
-
-                if (prunedDocument == null)
-                {
-                    LogDocumentEmpty(clusterId);
-                    continue;
-                }
-
-                LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
-
-                // Apply schema prefix if configured
-                var finalDocument = prunedDocument;
-                var prefix = routeMapping.ClusterOpenApiConfig.Prefix;
-                if (!String.IsNullOrWhiteSpace(prefix))
-                {
-                    LogApplyingPrefix(prefix);
-                    finalDocument = _schemaRenamer.ApplyPrefix(prunedDocument, prefix);
-
-                    if (finalDocument == null)
-                    {
-                        LogPrefixFailed(clusterId);
-                        continue;
-                    }
-                }
-
-                processedDocuments.Add(finalDocument);
-                LogRouteProcessed(routeId);
-            }
-            catch (Exception ex)
-            {
-                LogRouteProcessingError(routeMapping.Route.RouteId, ex);
-                // Continue with other routes
-            }
-        }
+        var processedDocuments = await ProcessServiceRoutesAsync(serviceProvider, serviceSpec, cancellationToken);
 
         if (processedDocuments.Count == 0)
         {
@@ -284,8 +201,7 @@ public sealed partial class OpenApiAggregationMiddleware
 
         LogDocumentsProcessed(processedDocuments.Count, serviceName);
 
-        // Merge all processed documents into one
-        var mergedDocument = _documentMerger.MergeDocuments(processedDocuments, serviceName);
+        var mergedDocument = documentMerger.MergeDocuments(processedDocuments, serviceName);
 
         if (mergedDocument == null)
         {
@@ -294,8 +210,175 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         LogMergeSuccess(processedDocuments.Count, serviceName);
-
         return mergedDocument;
+    }
+
+    /// <summary>
+    /// Finds the service specification matching the given service name.
+    /// </summary>
+    private static ServiceSpecification? FindServiceSpecification(IServiceSpecificationAnalyzer serviceAnalyzer, string serviceName)
+    {
+        var serviceSpecs = serviceAnalyzer.AnalyzeServices();
+        return serviceSpecs.FirstOrDefault(s =>
+            String.Equals(s.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(ToKebabCase(s.ServiceName), serviceName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Processes all routes for a service specification.
+    /// </summary>
+    private async Task<List<OpenApiDocument>> ProcessServiceRoutesAsync(
+        IServiceProvider serviceProvider,
+        ServiceSpecification serviceSpec,
+        CancellationToken cancellationToken)
+    {
+        var processedDocuments = new List<OpenApiDocument>();
+
+        // Resolve services once outside the loop for better performance
+        var documentFetcher = serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>();
+        var reachabilityAnalyzer = serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>();
+        var documentPruner = serviceProvider.GetRequiredService<IOpenApiDocumentPruner>();
+        var schemaRenamer = serviceProvider.GetRequiredService<ISchemaRenamer>();
+
+        foreach (var routeMapping in serviceSpec.Routes)
+        {
+            try
+            {
+                var document = await ProcessSingleRouteAsync(
+                    documentFetcher,
+                    reachabilityAnalyzer,
+                    documentPruner,
+                    schemaRenamer,
+                    routeMapping,
+                    cancellationToken);
+
+                if (document != null)
+                {
+                    processedDocuments.Add(document);
+                    LogRouteProcessed(routeMapping.Route.RouteId);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogRouteProcessingError(routeMapping.Route.RouteId, ex);
+            }
+        }
+
+        return processedDocuments;
+    }
+
+    /// <summary>
+    /// Processes a single route to produce an OpenAPI document.
+    /// </summary>
+    private async Task<OpenApiDocument?> ProcessSingleRouteAsync(
+        IOpenApiDocumentFetcher documentFetcher,
+        IPathReachabilityAnalyzer reachabilityAnalyzer,
+        IOpenApiDocumentPruner documentPruner,
+        ISchemaRenamer schemaRenamer,
+        RouteClusterMapping routeMapping,
+        CancellationToken cancellationToken)
+    {
+        var clusterId = routeMapping.Cluster.ClusterId;
+        LogProcessingRoute(routeMapping.Route.RouteId, clusterId);
+
+        var baseUrl = GetClusterBaseUrl(routeMapping, clusterId);
+        if (baseUrl == null)
+        {
+            return null;
+        }
+
+        var openApiPath = routeMapping.ClusterOpenApiConfig.OpenApiPath ?? "/swagger/v1/swagger.json";
+        var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
+
+        if (document == null)
+        {
+            LogFetchFailed(clusterId);
+            return null;
+        }
+
+        LogFetchedDocument(document.Paths?.Count ?? 0);
+
+        var prunedDocument = PruneDocumentPaths(reachabilityAnalyzer, documentPruner, document, routeMapping, clusterId);
+        if (prunedDocument == null)
+        {
+            return null;
+        }
+
+        return ApplySchemaPrefix(schemaRenamer, prunedDocument, routeMapping, clusterId);
+    }
+
+    /// <summary>
+    /// Gets the base URL from cluster destinations.
+    /// </summary>
+    private string? GetClusterBaseUrl(RouteClusterMapping routeMapping, string clusterId)
+    {
+        var destination = routeMapping.Cluster.Destinations?.FirstOrDefault().Value;
+        if (destination == null)
+        {
+            LogNoDestinations(clusterId);
+            return null;
+        }
+
+        var baseUrl = destination.Address?.TrimEnd('/');
+        if (String.IsNullOrWhiteSpace(baseUrl))
+        {
+            LogNoDestinationAddress(clusterId);
+            return null;
+        }
+
+        return baseUrl;
+    }
+
+    /// <summary>
+    /// Prunes unreachable paths from the document.
+    /// </summary>
+    private OpenApiDocument? PruneDocumentPaths(
+        IPathReachabilityAnalyzer reachabilityAnalyzer,
+        IOpenApiDocumentPruner documentPruner,
+        OpenApiDocument document,
+        RouteClusterMapping routeMapping,
+        string clusterId)
+    {
+        var reachabilityResult = reachabilityAnalyzer.AnalyzePathReachability(document, routeMapping);
+        LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
+
+        var prunedDocument = documentPruner.PruneDocument(document, reachabilityResult);
+
+        if (prunedDocument == null)
+        {
+            LogDocumentEmpty(clusterId);
+            return null;
+        }
+
+        LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
+        return prunedDocument;
+    }
+
+    /// <summary>
+    /// Applies schema prefix if configured.
+    /// </summary>
+    private OpenApiDocument? ApplySchemaPrefix(
+        ISchemaRenamer schemaRenamer,
+        OpenApiDocument document,
+        RouteClusterMapping routeMapping,
+        string clusterId)
+    {
+        var prefix = routeMapping.ClusterOpenApiConfig.Prefix;
+        if (String.IsNullOrWhiteSpace(prefix))
+        {
+            return document;
+        }
+
+        LogApplyingPrefix(prefix);
+        var prefixedDocument = schemaRenamer.ApplyPrefix(document, prefix);
+
+        if (prefixedDocument == null)
+        {
+            LogPrefixFailed(clusterId);
+            return null;
+        }
+
+        return prefixedDocument;
     }
 
     /// <summary>
@@ -368,9 +451,6 @@ public sealed partial class OpenApiAggregationMiddleware
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Handling OpenAPI spec request for service: {ServiceName}")]
     private partial void LogHandlingSpecRequest(string serviceName);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Returning cached OpenAPI spec for service: {ServiceName}")]
-    private partial void LogReturningCachedSpec(string serviceName);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Service not found or failed to aggregate: {ServiceName}")]
     private partial void LogServiceNotFound(string serviceName);
