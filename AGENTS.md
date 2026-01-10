@@ -2,6 +2,21 @@
 
 This file provides technical guidance for AI coding agents working with the Extensions YARP repository. It complements README.md by containing detailed development practices and architectural constraints.
 
+## Communication Guidelines
+
+**IMPORTANT**: Provide succinct, minimal responses unless explicitly requested otherwise.
+
+- Keep explanations brief and to the point
+- Avoid verbose commentary or over-explaining
+- Focus on actionable information only
+- Provide details only when user specifically asks for them
+- Let the code and test results speak for themselves
+
+**Examples of preferred communication**:
+- ✅ "Tests pass. Coverage maintained at 85%."
+- ✅ "Added authentication middleware. See Auth/JwtMiddleware.cs:45"
+- ❌ "I've successfully implemented the authentication middleware! This is a great addition that will help secure your application. The middleware validates JWT tokens and ensures that only authenticated users can access protected endpoints..."
+
 ## Quick Start
 
 ### Commands
