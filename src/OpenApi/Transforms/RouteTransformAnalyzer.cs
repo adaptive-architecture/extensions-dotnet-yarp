@@ -36,6 +36,9 @@ public interface IRouteTransformAnalyzer
 /// </summary>
 public class RouteTransformAnalyzer : IRouteTransformAnalyzer
 {
+    private const string CatchAllWithSlash = "/{**catch-all}";
+    private const string CatchAll = "{**catch-all}";
+
     /// <inheritdoc/>
     public RouteTransformAnalysis AnalyzeRoute(RouteConfig route)
     {
@@ -172,8 +175,8 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
 
         // Extract the catch-all portion from the pattern
         // Pattern: "/users/{**catch-all}" -> downstream: "/users/123" -> should map to route pattern
-        var patternWithoutCatchAll = pattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
-        var routeWithoutCatchAll = routePattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
+        var patternWithoutCatchAll = pattern.Replace(CatchAllWithSlash, "").Replace(CatchAll, "");
+        var routeWithoutCatchAll = routePattern.Replace(CatchAllWithSlash, "").Replace(CatchAll, "");
 
         if (downstreamPath.StartsWith(patternWithoutCatchAll))
         {
@@ -197,7 +200,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
             var pathWithoutPrefix = downstreamPath[prefix.Length..];
 
             // Map the result back to the route pattern
-            var routeBase = routePattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
+            var routeBase = routePattern.Replace(CatchAllWithSlash, "").Replace(CatchAll, "");
             return routeBase + pathWithoutPrefix;
         }
 

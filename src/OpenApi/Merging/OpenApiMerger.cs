@@ -97,10 +97,10 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
             {
                 foreach (var (path, pathItem) in document.Paths)
                 {
-                    if (mergedDocument.Paths.ContainsKey(path))
+                    if (mergedDocument.Paths.TryGetValue(path, out var existing))
                     {
                         LogPathConflict(path);
-                        mergedDocument.Paths[path] = MergePathItems((OpenApiPathItem)mergedDocument.Paths[path], (OpenApiPathItem)pathItem);
+                        mergedDocument.Paths[path] = MergePathItems((OpenApiPathItem)existing, (OpenApiPathItem)pathItem);
                         pathConflicts++;
                     }
                     else
@@ -143,7 +143,7 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
 
     private static OpenApiInfo CreateMergedInfo(List<OpenApiDocument> documents, string serviceName)
     {
-        var firstDoc = documents.First();
+        var firstDoc = documents[0];
         var descriptions = documents
             .Where(d => d.Info?.Description != null)
             .Select(d => d.Info.Description)

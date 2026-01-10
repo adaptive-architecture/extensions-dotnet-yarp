@@ -62,10 +62,10 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(content);
-        
+
         var users = JsonSerializer.Deserialize<JsonElement[]>(content);
         Assert.NotNull(users);
         Assert.NotEmpty(users);
@@ -83,10 +83,10 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var user = JsonSerializer.Deserialize<JsonElement>(content);
-        
+
         Assert.Equal(1, user.GetProperty("id").GetInt32());
         Assert.True(user.TryGetProperty("username", out _));
         Assert.True(user.TryGetProperty("email", out _));
@@ -118,10 +118,10 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(content);
-        
+
         var products = JsonSerializer.Deserialize<JsonElement[]>(content);
         Assert.NotNull(products);
         Assert.NotEmpty(products);
@@ -139,10 +139,10 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var product = JsonSerializer.Deserialize<JsonElement>(content);
-        
+
         Assert.Equal(1, product.GetProperty("id").GetInt32());
         Assert.True(product.TryGetProperty("name", out _));
         Assert.True(product.TryGetProperty("price", out _));
@@ -174,13 +174,13 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var products = JsonSerializer.Deserialize<JsonElement[]>(content);
-        
+
         Assert.NotNull(products);
         Assert.NotEmpty(products);
-        Assert.All(products, p => 
+        Assert.All(products, p =>
             Assert.Equal("Electronics", p.GetProperty("category").GetString()));
     }
 
@@ -204,10 +204,10 @@ public class OpenApiAggregationIntegrationTests
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var user = JsonSerializer.Deserialize<JsonElement>(content);
-        
+
         Assert.Equal("testuser", user.GetProperty("username").GetString());
         Assert.Equal("test@example.com", user.GetProperty("email").GetString());
     }
@@ -234,10 +234,10 @@ public class OpenApiAggregationIntegrationTests
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var product = JsonSerializer.Deserialize<JsonElement>(content);
-        
+
         Assert.Equal("Test Product", product.GetProperty("name").GetString());
         Assert.Equal(99.99m, product.GetProperty("price").GetDecimal());
     }
@@ -288,10 +288,10 @@ public class OpenApiAggregationIntegrationTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        
+
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var product = JsonSerializer.Deserialize<JsonElement>(content);
-        
+
         Assert.Equal("Updated Product", product.GetProperty("name").GetString());
         Assert.Equal(149.99m, product.GetProperty("price").GetDecimal());
     }

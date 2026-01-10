@@ -359,7 +359,7 @@ public class PathReachabilityAnalyzerTests
     // Helper methods
     private static RouteClusterMapping CreateTestMapping(RouteConfig route = null, string clusterId = null)
     {
-        route = route ?? CreateTestRoute("test-route", clusterId ?? "test-cluster");
+        route ??= CreateTestRoute("test-route", clusterId ?? "test-cluster");
 
         return new RouteClusterMapping
         {
