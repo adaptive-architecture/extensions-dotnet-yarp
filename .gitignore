@@ -355,6 +355,3 @@ MigrationBackup/
 # Code coverage
 coverage/
 *.lcov
-
-.claude
-specs
