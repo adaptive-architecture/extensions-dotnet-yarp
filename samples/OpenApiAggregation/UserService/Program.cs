@@ -23,6 +23,19 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Disable HTTP caching for all responses (development/sample only)
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers.Expires = "0";
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
 // Configure the HTTP request pipeline
 // Always enable Swagger for this sample/demo project
 app.UseSwagger();
@@ -34,4 +47,4 @@ app.UseSwaggerUI(options =>
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
