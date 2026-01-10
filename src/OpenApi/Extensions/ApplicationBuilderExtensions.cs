@@ -41,11 +41,11 @@ public static class ApplicationBuilderExtensions
         // Ensure basePath starts with /
         if (!basePath.StartsWith('/'))
         {
-            basePath = "/" + basePath;
+            basePath = $"{Path.AltDirectorySeparatorChar}{basePath}";
         }
 
         // Remove trailing slash if present
-        basePath = basePath.TrimEnd('/');
+        basePath = basePath.TrimEnd(Path.AltDirectorySeparatorChar);
 
         app.UseMiddleware<OpenApiAggregationMiddleware>(basePath);
 

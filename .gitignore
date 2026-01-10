@@ -355,3 +355,5 @@ MigrationBackup/
 # Code coverage
 coverage/
 *.lcov
+
+.sonarqube/

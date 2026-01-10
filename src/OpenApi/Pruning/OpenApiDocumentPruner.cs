@@ -128,12 +128,9 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         // Step 4: Copy only used tags
         if (document.Tags != null)
         {
-            foreach (var tag in document.Tags)
+            foreach (var tag in document.Tags.Where(t => usedTags.Contains(t.Name!)))
             {
-                if (usedTags.Contains(tag.Name!))
-                {
-                    prunedDocument.Tags.Add(tag);
-                }
+                prunedDocument.Tags.Add(tag);
             }
             LogPrunedTags(document.Tags.Count, prunedDocument.Tags.Count);
         }
@@ -166,12 +163,9 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
             // Track used tags
             if (operation.Tags != null)
             {
-                foreach (var tag in operation.Tags)
+                foreach (var tag in operation.Tags.Where(t => !String.IsNullOrWhiteSpace(t.Name)))
                 {
-                    if (!String.IsNullOrWhiteSpace(tag.Name))
-                    {
-                        usedTags.Add(tag.Name);
-                    }
+                    usedTags.Add(tag.Name!);
                 }
             }
         }
@@ -202,15 +196,11 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         // Check responses
         if (operation.Responses != null)
         {
-            foreach (var response in operation.Responses.Values)
+            foreach (var schema in operation.Responses.Values
+                .Where(r => r.Content != null)
+                .SelectMany(r => r.Content!.Values.Select(m => m.Schema)))
             {
-                if (response.Content != null)
-                {
-                    foreach (var mediaType in response.Content.Values)
-                    {
-                        AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
-                    }
-                }
+                AddSchemaReferences(schema, schemasToAnalyze);
             }
         }
     }
@@ -221,14 +211,11 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         var schemasToAnalyze = new Queue<string>();
 
         // Step 1: Find all directly referenced schemas from operations
-        foreach (var pathItem in paths.Values)
+        foreach (var operation in paths.Values
+            .Where(p => p.Operations != null)
+            .SelectMany(p => p.Operations!.Values))
         {
-            if (pathItem.Operations == null) continue;
-
-            foreach (var operation in pathItem.Operations.Values)
-            {
-                AnalyzeOperationSchemas(operation, schemasToAnalyze);
-            }
+            AnalyzeOperationSchemas(operation, schemasToAnalyze);
         }
 
         // Step 2: Process queue and find nested schema references (recursive)

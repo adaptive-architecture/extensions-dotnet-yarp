@@ -91,23 +91,17 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
 
         // Merge paths
         var pathConflicts = 0;
-        foreach (var document in documentList)
+        foreach (var (path, pathItem) in documentList.Where(d => d.Paths != null).SelectMany(d => d.Paths))
         {
-            if (document.Paths != null)
+            if (mergedDocument.Paths.TryGetValue(path, out var existing))
             {
-                foreach (var (path, pathItem) in document.Paths)
-                {
-                    if (mergedDocument.Paths.TryGetValue(path, out var existing))
-                    {
-                        LogPathConflict(path);
-                        mergedDocument.Paths[path] = MergePathItems((OpenApiPathItem)existing, (OpenApiPathItem)pathItem);
-                        pathConflicts++;
-                    }
-                    else
-                    {
-                        mergedDocument.Paths[path] = pathItem;
-                    }
-                }
+                LogPathConflict(path);
+                mergedDocument.Paths[path] = MergePathItems((OpenApiPathItem)existing, (OpenApiPathItem)pathItem);
+                pathConflicts++;
+            }
+            else
+            {
+                mergedDocument.Paths[path] = pathItem;
             }
         }
 
@@ -165,18 +159,12 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
         var servers = new List<OpenApiServer>();
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var document in documents)
+        foreach (var server in documents
+            .Where(d => d.Servers != null)
+            .SelectMany(d => d.Servers!)
+            .Where(s => !String.IsNullOrWhiteSpace(s.Url) && seenUrls.Add(s.Url)))
         {
-            if (document.Servers != null)
-            {
-                foreach (var server in document.Servers)
-                {
-                    if (!String.IsNullOrWhiteSpace(server.Url) && seenUrls.Add(server.Url))
-                    {
-                        servers.Add(server);
-                    }
-                }
-            }
+            servers.Add(server);
         }
 
         return servers;
@@ -184,35 +172,22 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
 
     private static List<OpenApiSecurityRequirement> MergeSecurity(List<OpenApiDocument> documents)
     {
-        var requirements = new List<OpenApiSecurityRequirement>();
-
-        foreach (var document in documents)
-        {
-            if (document.Security != null)
-            {
-                requirements.AddRange(document.Security);
-            }
-        }
-
-        return requirements;
+        return documents
+            .Where(d => d.Security != null)
+            .SelectMany(d => d.Security!)
+            .ToList();
     }
 
     private static HashSet<OpenApiTag> MergeTags(List<OpenApiDocument> documents)
     {
         var tags = new Dictionary<string, OpenApiTag>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var document in documents)
+        foreach (var tag in documents
+            .Where(d => d.Tags != null)
+            .SelectMany(d => d.Tags!)
+            .Where(t => !String.IsNullOrWhiteSpace(t.Name) && !tags.ContainsKey(t.Name!)))
         {
-            if (document.Tags != null)
-            {
-                foreach (var tag in document.Tags)
-                {
-                    if (!String.IsNullOrWhiteSpace(tag.Name) && !tags.ContainsKey(tag.Name))
-                    {
-                        tags[tag.Name] = tag;
-                    }
-                }
-            }
+            tags[tag.Name!] = tag;
         }
 
         return [.. tags.Values];
@@ -294,25 +269,19 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
 
     private static void MergeDictionary<T>(IDictionary<string, T> target, IEnumerable<OpenApiDocument> documents, Func<OpenApiComponents, IDictionary<string, T>?> getComponents, Action<string>? onConflict = null)
     {
-        foreach (var document in documents)
+        foreach (var (name, item) in documents
+            .Where(d => d.Components != null)
+            .Select(d => getComponents(d.Components!))
+            .Where(c => c != null)
+            .SelectMany(c => c!))
         {
-            if (document.Components != null)
+            if (target.ContainsKey(name))
             {
-                var components = getComponents(document.Components);
-                if (components != null)
-                {
-                    foreach (var (name, item) in components)
-                    {
-                        if (target.ContainsKey(name))
-                        {
-                            onConflict?.Invoke(name);
-                        }
-                        else
-                        {
-                            target[name] = item;
-                        }
-                    }
-                }
+                onConflict?.Invoke(name);
+            }
+            else
+            {
+                target[name] = item;
             }
         }
     }
