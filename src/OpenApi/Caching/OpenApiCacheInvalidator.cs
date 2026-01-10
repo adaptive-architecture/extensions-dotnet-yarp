@@ -1,8 +1,8 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Caching;
 
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 
+namespace AdaptArch.Extensions.Yarp.OpenApi.Caching;
 /// <summary>
 /// Default implementation of <see cref="IOpenApiCacheInvalidator"/>.
 /// Provides tag-based cache invalidation for OpenAPI documents and aggregated specifications.

@@ -37,6 +37,10 @@ public sealed partial class OpenApiAggregationMiddleware
         string basePath,
         ILogger<OpenApiAggregationMiddleware> logger)
     {
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(basePath);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _next = next;
         _basePath = basePath;
         _logger = logger;

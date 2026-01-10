@@ -1,6 +1,7 @@
-namespace AdaptArch.Extensions.Yarp.Auth.UnitTests;
 
 using Xunit;
+
+namespace AdaptArch.Extensions.Yarp.Auth.UnitTests;
 
 public class AuthModuleTests
 {

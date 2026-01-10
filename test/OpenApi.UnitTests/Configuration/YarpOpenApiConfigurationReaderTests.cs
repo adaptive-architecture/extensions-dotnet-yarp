@@ -1,13 +1,13 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
-
-using System.Collections.Generic;
 using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using NSubstitute;
 using Xunit;
 using global::Yarp.ReverseProxy.Configuration;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
 public class YarpOpenApiConfigurationReaderTests
 {
@@ -17,7 +17,7 @@ public class YarpOpenApiConfigurationReaderTests
     public YarpOpenApiConfigurationReaderTests()
     {
         _proxyConfigProvider = Substitute.For<IProxyConfigProvider>();
-        _logger = Substitute.For<ILogger<YarpOpenApiConfigurationReader>>();
+        _logger = NullLogger<YarpOpenApiConfigurationReader>.Instance;
     }
 
     [Fact]

@@ -1,9 +1,8 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Transforms;
-
-using System.Collections.Generic;
 using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 using global::Yarp.ReverseProxy.Configuration;
 using Xunit;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Transforms;
 
 public class RouteTransformAnalyzerTests
 {

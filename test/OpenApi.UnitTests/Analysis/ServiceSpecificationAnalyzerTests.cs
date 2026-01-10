@@ -1,12 +1,12 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Analysis;
-
-using System.Collections.Generic;
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using global::Yarp.ReverseProxy.Configuration;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Analysis;
 
 public class ServiceSpecificationAnalyzerTests
 {
@@ -17,7 +17,7 @@ public class ServiceSpecificationAnalyzerTests
     public ServiceSpecificationAnalyzerTests()
     {
         _configReader = Substitute.For<IYarpOpenApiConfigurationReader>();
-        _logger = Substitute.For<ILogger<ServiceSpecificationAnalyzer>>();
+        _logger = NullLogger<ServiceSpecificationAnalyzer>.Instance;
         _analyzer = new ServiceSpecificationAnalyzer(_configReader, _logger);
     }
 

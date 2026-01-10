@@ -1,9 +1,7 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
-
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
+namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
 /// <summary>
 /// JSON serializer context for AOT compatibility
 /// </summary>

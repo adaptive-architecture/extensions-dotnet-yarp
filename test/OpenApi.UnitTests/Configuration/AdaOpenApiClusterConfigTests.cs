@@ -1,8 +1,9 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
 using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Xunit;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Configuration;
 
 public class AdaOpenApiClusterConfigTests
 {

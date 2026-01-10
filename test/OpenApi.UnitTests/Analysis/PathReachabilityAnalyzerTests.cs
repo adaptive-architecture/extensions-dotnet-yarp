@@ -1,16 +1,15 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Analysis;
-
-using System.Collections.Generic;
-using System.Net.Http;
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using NSubstitute;
 using Xunit;
 using global::Yarp.ReverseProxy.Configuration;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Analysis;
 
 public class PathReachabilityAnalyzerTests
 {
@@ -23,7 +22,7 @@ public class PathReachabilityAnalyzerTests
     {
         _transformAnalyzer = Substitute.For<IRouteTransformAnalyzer>();
         _optionsMonitor = Substitute.For<IOptionsMonitor<OpenApiAggregationOptions>>();
-        _logger = Substitute.For<ILogger<PathReachabilityAnalyzer>>();
+        _logger = NullLogger<PathReachabilityAnalyzer>.Instance;
 
         var options = new OpenApiAggregationOptions();
         _optionsMonitor.CurrentValue.Returns(options);

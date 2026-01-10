@@ -1,7 +1,7 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Merging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.OpenApi;
-using NSubstitute;
 using Xunit;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Merging;
@@ -13,7 +13,7 @@ public class OpenApiMergerTests
 
     public OpenApiMergerTests()
     {
-        _logger = Substitute.For<ILogger<OpenApiMerger>>();
+        _logger = NullLogger<OpenApiMerger>.Instance;
         _merger = new OpenApiMerger(_logger);
     }
 

@@ -1,6 +1,7 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests;
 
 using Xunit;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests;
 
 public class OpenApiModuleTests
 {

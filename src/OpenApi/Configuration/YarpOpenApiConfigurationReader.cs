@@ -1,4 +1,3 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -6,6 +5,7 @@ using global::Yarp.ReverseProxy.Configuration;
 using System.Text.Json.Serialization.Metadata;
 using AdaptArch.Extensions.Yarp.OpenApi.Json;
 
+namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 /// <summary>
 /// Service for reading OpenAPI configuration from YARP cluster and route metadata.
 /// </summary>

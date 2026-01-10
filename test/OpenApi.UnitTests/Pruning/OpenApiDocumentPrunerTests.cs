@@ -1,15 +1,13 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Pruning;
-
-using System.Collections.Generic;
-using System.Net.Http;
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Pruning;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.OpenApi;
-using NSubstitute;
 using Xunit;
-using RouteTransformAnalysis = OpenApi.Transforms.RouteTransformAnalysis;
-using TransformType = OpenApi.Transforms.TransformType;
+using RouteTransformAnalysis = AdaptArch.Extensions.Yarp.OpenApi.Transforms.RouteTransformAnalysis;
+using TransformType = AdaptArch.Extensions.Yarp.OpenApi.Transforms.TransformType;
+
+namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Pruning;
 
 public class OpenApiDocumentPrunerTests
 {
@@ -18,7 +16,7 @@ public class OpenApiDocumentPrunerTests
 
     public OpenApiDocumentPrunerTests()
     {
-        _logger = Substitute.For<ILogger<OpenApiDocumentPruner>>();
+        _logger = NullLogger<OpenApiDocumentPruner>.Instance;
         _pruner = new OpenApiDocumentPruner(_logger);
     }
 

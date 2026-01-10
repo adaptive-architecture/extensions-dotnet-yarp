@@ -71,3 +71,9 @@ app.MapPost("/admin/cache/invalidate-all", async (IOpenApiCacheInvalidator inval
 app.MapReverseProxy();
 
 await app.RunAsync();
+
+// Make Program class accessible for integration tests
+namespace AdaptArch.Extensions.Yarp.Gateway
+{
+    public partial class Program { }
+}

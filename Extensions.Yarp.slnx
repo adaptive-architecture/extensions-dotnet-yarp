@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/OpenApi.UnitTests/OpenApi.UnitTests.csproj" />
+    <Project Path="test/OpenApi.IntegrationTests/OpenApi.IntegrationTests.csproj" />
     <Project Path="test/Auth.UnitTests/Auth.UnitTests.csproj" />
   </Folder>
 </Solution>

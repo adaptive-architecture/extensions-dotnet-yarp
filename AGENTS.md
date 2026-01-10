@@ -149,6 +149,9 @@ This constitution supersedes all other development practices and guidelines. All
 - TestContainers for integration tests with external dependencies
 - Coverage collected via Coverlet (OpenCover + LCOV formats)
 - Integration test environment variables set in CI
+- **NEVER suppress warnings unless explicitly told to by the user**
+  - Fix the root cause instead of suppressing analyzer warnings
+  - If analyzer rules are too strict, discuss with team before disabling
 
 ## Development Workflow
 

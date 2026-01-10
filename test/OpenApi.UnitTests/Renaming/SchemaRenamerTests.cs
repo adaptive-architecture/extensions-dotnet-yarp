@@ -1,7 +1,7 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.OpenApi;
-using NSubstitute;
 using Xunit;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Renaming;
@@ -13,7 +13,7 @@ public class SchemaRenamerTests
 
     public SchemaRenamerTests()
     {
-        _logger = Substitute.For<ILogger<SchemaRenamer>>();
+        _logger = NullLogger<SchemaRenamer>.Instance;
         _renamer = new SchemaRenamer(_logger);
     }
 

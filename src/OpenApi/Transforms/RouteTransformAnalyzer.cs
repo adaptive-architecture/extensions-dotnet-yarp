@@ -1,7 +1,7 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 
 using global::Yarp.ReverseProxy.Configuration;
 
+namespace AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 /// <summary>
 /// Service for analyzing YARP route transforms to determine path mappings.
 /// </summary>

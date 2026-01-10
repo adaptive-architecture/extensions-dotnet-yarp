@@ -48,3 +48,9 @@ app.UseSwaggerUI(options =>
 app.MapControllers();
 
 await app.RunAsync();
+
+// Make Program class accessible for integration tests
+namespace AdaptArch.Extensions.Yarp.ProductService
+{
+    public partial class Program { }
+}

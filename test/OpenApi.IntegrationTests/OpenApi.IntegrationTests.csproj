@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.OpenApi.Readers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenApi\OpenApi.csproj" />
+    <ProjectReference Include="..\..\samples\OpenApiAggregation\UserService\UserService.csproj" />
+    <ProjectReference Include="..\..\samples\OpenApiAggregation\ProductService\ProductService.csproj" />
+    <ProjectReference Include="..\..\samples\OpenApiAggregation\Gateway\Gateway.csproj" />
+  </ItemGroup>
+
+</Project>
