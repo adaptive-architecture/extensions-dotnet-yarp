@@ -1,5 +1,5 @@
 
-using global::Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 /// <summary>
@@ -227,23 +227,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
         return downstreamPath == setPath ? downstreamPath : null;
     }
 
-    private static string? MapWithRoutePattern(string path, string fromPattern, string toPattern)
-    {
-        // Simple catch-all pattern matching
-        var fromWithoutCatchAll = fromPattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
-        var toWithoutCatchAll = toPattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
 
-        // If path starts with the fromPattern prefix, map it to toPattern prefix
-        if (fromWithoutCatchAll.Length == 0 || path.StartsWith(fromWithoutCatchAll))
-        {
-            var remainder = fromWithoutCatchAll.Length > 0
-                ? path[fromWithoutCatchAll.Length..]
-                : path;
-            return toWithoutCatchAll + remainder;
-        }
-
-        return null;
-    }
 }
 
 /// <summary>

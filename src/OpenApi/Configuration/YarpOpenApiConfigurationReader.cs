@@ -1,7 +1,7 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using global::Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Configuration;
 using System.Text.Json.Serialization.Metadata;
 using AdaptArch.Extensions.Yarp.OpenApi.Json;
 
@@ -60,11 +60,7 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     private readonly IProxyConfigProvider _proxyConfigProvider;
     private readonly ILogger _logger;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YarpOpenApiConfigurationReader"/> class.

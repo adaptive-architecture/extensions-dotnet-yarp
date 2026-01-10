@@ -202,38 +202,8 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
                 // Handle non-analyzable transforms according to strategy
                 if (!analysis.IsAnalyzable)
                 {
-                    var warning = $"Route {mapping.Route.RouteId} has non-analyzable transforms for path {backendPath}";
-
-                    if (options.LogTransformWarnings)
-                    {
-                        LogTransformWarning(warning);
-                    }
-
-                    switch (options.NonAnalyzableStrategy)
-                    {
-                        case NonAnalyzableTransformStrategy.IncludeWithWarning:
-                            warnings.Add(warning);
-                            // Treat as reachable with a warning
-                            AddReachablePath(reachablePaths, backendPath, backendPath, operations, mapping, analysis);
-                            foundReachableRoute = true;
-                            break;
-
-                        case NonAnalyzableTransformStrategy.ExcludeWithWarning:
-                            warnings.Add(warning);
-                            // Skip this route, don't mark as reachable
-                            break;
-
-                        case NonAnalyzableTransformStrategy.SkipService:
-                            warnings.Add($"Skipping service due to non-analyzable route {mapping.Route.RouteId}");
-                            // Return early with empty results
-                            return new PathReachabilityResult
-                            {
-                                ReachablePaths = [],
-                                UnreachablePaths = [],
-                                Warnings = warnings
-                            };
-                    }
-
+                    var earlyReturn = HandleNonAnalyzable(backendPath, mapping, options, reachablePaths, warnings, operations, analysis, ref foundReachableRoute);
+                    if (earlyReturn != null) return earlyReturn;
                     continue; // Move to next route
                 }
 
@@ -296,6 +266,43 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
                 TransformAnalysis = analysis
             };
         }
+    }
+
+    private PathReachabilityResult? HandleNonAnalyzable(string backendPath, RouteClusterMapping mapping, OpenApiAggregationOptions options, Dictionary<string, ReachablePathInfo> reachablePaths, List<string> warnings, Dictionary<HttpMethod, OpenApiOperation> operations, RouteTransformAnalysis analysis, ref bool foundReachableRoute)
+    {
+        var warning = $"Route {mapping.Route.RouteId} has non-analyzable transforms for path {backendPath}";
+
+        if (options.LogTransformWarnings)
+        {
+            LogTransformWarning(warning);
+        }
+
+        switch (options.NonAnalyzableStrategy)
+        {
+            case NonAnalyzableTransformStrategy.IncludeWithWarning:
+                warnings.Add(warning);
+                // Treat as reachable with a warning
+                AddReachablePath(reachablePaths, backendPath, backendPath, operations, mapping, analysis);
+                foundReachableRoute = true;
+                break;
+
+            case NonAnalyzableTransformStrategy.ExcludeWithWarning:
+                warnings.Add(warning);
+                // Skip this route, don't mark as reachable
+                break;
+
+            case NonAnalyzableTransformStrategy.SkipService:
+                warnings.Add($"Skipping service due to non-analyzable route {mapping.Route.RouteId}");
+                // Return early with empty results
+                return new PathReachabilityResult
+                {
+                    ReachablePaths = [],
+                    UnreachablePaths = [],
+                    Warnings = warnings
+                };
+        }
+
+        return null;
     }
 
     private static Dictionary<HttpMethod, OpenApiOperation> GetOperations(OpenApiPathItem pathItem)

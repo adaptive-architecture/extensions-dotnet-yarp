@@ -258,141 +258,62 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
     {
         // Merge schemas
         target.Schemas = new Dictionary<string, IOpenApiSchema>();
-        foreach (var document in documents)
-        {
-            if (document.Components?.Schemas != null)
-            {
-                foreach (var (name, schema) in document.Components.Schemas)
-                {
-                    if (target.Schemas.ContainsKey(name))
-                    {
-                        LogSchemaConflict(name);
-                    }
-                    else
-                    {
-                        target.Schemas[name] = schema;
-                    }
-                }
-            }
-        }
+        MergeDictionary(target.Schemas, documents, c => c.Schemas, name => LogSchemaConflict(name));
 
         // Merge responses
         target.Responses = new Dictionary<string, IOpenApiResponse>();
-        foreach (var document in documents)
-        {
-            if (document.Components?.Responses != null)
-            {
-                foreach (var (name, response) in document.Components.Responses)
-                {
-                    if (!target.Responses.ContainsKey(name))
-                    {
-                        target.Responses[name] = response;
-                    }
-                }
-            }
-        }
+        MergeDictionary(target.Responses, documents, c => c.Responses);
 
         // Merge parameters
         target.Parameters = new Dictionary<string, IOpenApiParameter>();
-        foreach (var document in documents)
-        {
-            if (document.Components?.Parameters != null)
-            {
-                foreach (var (name, parameter) in document.Components.Parameters)
-                {
-                    if (!target.Parameters.ContainsKey(name))
-                    {
-                        target.Parameters[name] = parameter;
-                    }
-                }
-            }
-        }
+        MergeDictionary(target.Parameters, documents, c => c.Parameters);
 
         // Merge request bodies
         target.RequestBodies = new Dictionary<string, IOpenApiRequestBody>();
-        foreach (var document in documents)
-        {
-            if (document.Components?.RequestBodies != null)
-            {
-                foreach (var (name, requestBody) in document.Components.RequestBodies)
-                {
-                    if (!target.RequestBodies.ContainsKey(name))
-                    {
-                        target.RequestBodies[name] = requestBody;
-                    }
-                }
-            }
-        }
+        MergeDictionary(target.RequestBodies, documents, c => c.RequestBodies);
 
         // Merge security schemes
         target.SecuritySchemes = new Dictionary<string, IOpenApiSecurityScheme>();
-        foreach (var document in documents)
-        {
-            if (document.Components?.SecuritySchemes != null)
-            {
-                foreach (var (name, scheme) in document.Components.SecuritySchemes)
-                {
-                    if (!target.SecuritySchemes.ContainsKey(name))
-                    {
-                        target.SecuritySchemes[name] = scheme;
-                    }
-                }
-            }
-        }
+        MergeDictionary(target.SecuritySchemes, documents, c => c.SecuritySchemes);
 
         // Merge other components (headers, examples, links, callbacks)
         target.Headers = new Dictionary<string, IOpenApiHeader>();
-        target.Examples = new Dictionary<string, IOpenApiExample>();
-        target.Links = new Dictionary<string, IOpenApiLink>();
-        target.Callbacks = new Dictionary<string, IOpenApiCallback>();
+        MergeDictionary(target.Headers, documents, c => c.Headers);
 
+        target.Examples = new Dictionary<string, IOpenApiExample>();
+        MergeDictionary(target.Examples, documents, c => c.Examples);
+
+        target.Links = new Dictionary<string, IOpenApiLink>();
+        MergeDictionary(target.Links, documents, c => c.Links);
+
+        target.Callbacks = new Dictionary<string, IOpenApiCallback>();
+        MergeDictionary(target.Callbacks, documents, c => c.Callbacks);
+
+        LogComponentsMerged(target.Schemas.Count, target.Responses.Count, target.Parameters.Count, target.SecuritySchemes.Count);
+    }
+
+    private static void MergeDictionary<T>(IDictionary<string, T> target, IEnumerable<OpenApiDocument> documents, Func<OpenApiComponents, IDictionary<string, T>?> getComponents, Action<string>? onConflict = null)
+    {
         foreach (var document in documents)
         {
-            if (document.Components?.Headers != null)
+            if (document.Components != null)
             {
-                foreach (var (name, header) in document.Components.Headers)
+                var components = getComponents(document.Components);
+                if (components != null)
                 {
-                    if (!target.Headers.ContainsKey(name))
+                    foreach (var (name, item) in components)
                     {
-                        target.Headers[name] = header;
-                    }
-                }
-            }
-
-            if (document.Components?.Examples != null)
-            {
-                foreach (var (name, example) in document.Components.Examples)
-                {
-                    if (!target.Examples.ContainsKey(name))
-                    {
-                        target.Examples[name] = example;
-                    }
-                }
-            }
-
-            if (document.Components?.Links != null)
-            {
-                foreach (var (name, link) in document.Components.Links)
-                {
-                    if (!target.Links.ContainsKey(name))
-                    {
-                        target.Links[name] = link;
-                    }
-                }
-            }
-
-            if (document.Components?.Callbacks != null)
-            {
-                foreach (var (name, callback) in document.Components.Callbacks)
-                {
-                    if (!target.Callbacks.ContainsKey(name))
-                    {
-                        target.Callbacks[name] = callback;
+                        if (target.ContainsKey(name))
+                        {
+                            onConflict?.Invoke(name);
+                        }
+                        else
+                        {
+                            target[name] = item;
+                        }
                     }
                 }
             }
         }
-
-        LogComponentsMerged(target.Schemas.Count, target.Responses.Count, target.Parameters.Count, target.SecuritySchemes.Count);
     }
 }
