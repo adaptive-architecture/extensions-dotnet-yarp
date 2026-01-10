@@ -94,19 +94,40 @@ curl http://localhost:5000/api-docs
 
 ### 2. Get User Management API Specification
 
+The middleware supports multiple URL patterns for accessing OpenAPI specifications:
+
+**Option 1: Basic endpoint (uses Accept header for content negotiation)**
 ```bash
+# Returns JSON by default
 curl http://localhost:5000/api-docs/user-management
+
+# Request YAML via Accept header
+curl -H "Accept: application/yaml" http://localhost:5000/api-docs/user-management
+```
+
+**Option 2: Explicit JSON format**
+```bash
+curl http://localhost:5000/api-docs/user-management/openapi.json
+```
+
+**Option 3: Explicit YAML format**
+```bash
+curl http://localhost:5000/api-docs/user-management/openapi.yaml
+# or
+curl http://localhost:5000/api-docs/user-management/openapi.yml
+```
+
+**Option 4: Using original service name (URL-encoded)**
+```bash
+curl http://localhost:5000/api-docs/User%20Management
+curl http://localhost:5000/api-docs/User%20Management/openapi.json
+curl http://localhost:5000/api-docs/User%20Management/openapi.yaml
 ```
 
 **Expected Response:** A merged OpenAPI document containing:
 - Paths for `/api/users`, `/api/users/{id}`
 - Schemas prefixed with `UserService` (e.g., `UserServiceUser`)
 - Only reachable paths included (based on YARP route configuration)
-
-**Get as YAML:**
-```bash
-curl http://localhost:5000/api-docs/user-management?format=yaml
-```
 
 ### 3. Get Product Catalog API Specification
 

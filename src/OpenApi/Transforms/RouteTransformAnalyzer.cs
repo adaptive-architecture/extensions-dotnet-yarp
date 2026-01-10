@@ -177,7 +177,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
 
         if (downstreamPath.StartsWith(patternWithoutCatchAll))
         {
-            var remainder = downstreamPath.Substring(patternWithoutCatchAll.Length);
+            var remainder = downstreamPath[patternWithoutCatchAll.Length..];
             return routeWithoutCatchAll + remainder;
         }
 
@@ -194,7 +194,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
         // PathPrefix adds a prefix going forward, so reverse removes it
         if (downstreamPath.StartsWith(prefix))
         {
-            var pathWithoutPrefix = downstreamPath.Substring(prefix.Length);
+            var pathWithoutPrefix = downstreamPath[prefix.Length..];
 
             // Map the result back to the route pattern
             var routeBase = routePattern.Replace("/{**catch-all}", "").Replace("{**catch-all}", "");
@@ -237,7 +237,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
         if (fromWithoutCatchAll.Length == 0 || path.StartsWith(fromWithoutCatchAll))
         {
             var remainder = fromWithoutCatchAll.Length > 0
-                ? path.Substring(fromWithoutCatchAll.Length)
+                ? path[fromWithoutCatchAll.Length..]
                 : path;
             return toWithoutCatchAll + remainder;
         }

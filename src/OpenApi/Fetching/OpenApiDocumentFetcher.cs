@@ -1,3 +1,4 @@
+using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
@@ -81,13 +82,20 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
         };
 
         // HybridCache provides automatic stampede protection
-        return await _cache.GetOrCreateAsync(
+        // Use wrapper to serialize OpenApiDocument as JSON string
+        var wrapper = await _cache.GetOrCreateAsync(
             cacheKey,
-            async cancel => await FetchDocumentFromSourceAsync(baseUrl, openApiPath, cancel),
+            async cancel =>
+            {
+                var doc = await FetchDocumentFromSourceAsync(baseUrl, openApiPath, cancel);
+                return doc == null ? null : await OpenApiDocumentCacheWrapper.FromDocumentAsync(doc, cancel);
+            },
             entryOptions,
             tags,
             cancellationToken
         );
+
+        return wrapper == null ? null : await wrapper.ToDocumentAsync(cancellationToken);
     }
 
     private async Task<OpenApiDocument?> FetchDocumentFromSourceAsync(string baseUrl, string openApiPath, CancellationToken cancellationToken)

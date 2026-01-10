@@ -19,9 +19,13 @@ public static class ApplicationBuilderExtensions
     /// The middleware exposes the following endpoints:
     /// <list type="bullet">
     /// <item><description>GET {basePath} - Returns a list of available service names</description></item>
-    /// <item><description>GET {basePath}/{serviceName} - Returns the aggregated OpenAPI specification for the specified service</description></item>
+    /// <item><description>GET {basePath}/{serviceName} - Returns the aggregated OpenAPI specification (content negotiation via Accept header)</description></item>
+    /// <item><description>GET {basePath}/{serviceName}/openapi.json - Returns the aggregated OpenAPI specification in JSON format</description></item>
+    /// <item><description>GET {basePath}/{serviceName}/openapi.yaml - Returns the aggregated OpenAPI specification in YAML format</description></item>
+    /// <item><description>GET {basePath}/{serviceName}/openapi.yml - Returns the aggregated OpenAPI specification in YAML format</description></item>
     /// </list>
-    /// The endpoints support content negotiation via the Accept header:
+    /// The {serviceName} can be either the original service name (e.g., "User Management") or kebab-case (e.g., "user-management").
+    /// When using the base endpoint without format suffix, content negotiation is performed via the Accept header:
     /// <list type="bullet">
     /// <item><description>application/json - Returns OpenAPI spec in JSON format (default)</description></item>
     /// <item><description>application/yaml or text/yaml - Returns OpenAPI spec in YAML format</description></item>

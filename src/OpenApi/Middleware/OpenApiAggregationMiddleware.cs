@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
+using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using AdaptArch.Extensions.Yarp.OpenApi.Fetching;
 using AdaptArch.Extensions.Yarp.OpenApi.Json;
@@ -56,7 +57,7 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         // Extract the service name from the path (if present)
-        var subPath = path.Substring(_basePath.Length).TrimStart('/');
+        var subPath = path[_basePath.Length..].TrimStart('/');
 
         if (String.IsNullOrEmpty(subPath))
         {
@@ -85,9 +86,19 @@ public sealed partial class OpenApiAggregationMiddleware
 
             // Analyze services from YARP configuration
             var serviceSpecs = serviceAnalyzer.AnalyzeServices();
-            var serviceNames = serviceSpecs.Select(s => s.ServiceName).Distinct().ToList();
 
-            LogFoundServices(serviceNames.Count, String.Join(", ", serviceNames));
+            // Build service info list with URLs
+            var services = serviceSpecs
+                .Select(s => s.ServiceName)
+                .Distinct()
+                .Select(name => new ServiceInfo
+                {
+                    Name = name,
+                    Url = $"{_basePath}/{ToKebabCase(name)}"
+                })
+                .ToList();
+
+            LogFoundServices(services.Count, services);
 
             // Return JSON response
             context.Response.ContentType = "application/json";
@@ -95,8 +106,8 @@ public sealed partial class OpenApiAggregationMiddleware
 
             var response = new ServiceListResponse
             {
-                Services = serviceNames,
-                Count = serviceNames.Count
+                Services = services,
+                Count = services.Count
             };
 
             var json = JsonSerializer.Serialize(response, OpenApiJsonContext.Default.ServiceListResponse);
@@ -113,10 +124,17 @@ public sealed partial class OpenApiAggregationMiddleware
 
     /// <summary>
     /// Handles requests for a specific service's aggregated OpenAPI specification.
-    /// GET /api-docs/{serviceName}
+    /// Supports multiple URL patterns:
+    /// - GET /api-docs/{serviceName}
+    /// - GET /api-docs/{serviceName}/openapi.json
+    /// - GET /api-docs/{serviceName}/openapi.yaml
+    /// - GET /api-docs/{serviceName}/openapi.yml
     /// </summary>
-    private async Task HandleServiceSpecRequest(HttpContext context, string serviceName)
+    private async Task HandleServiceSpecRequest(HttpContext context, string subPath)
     {
+        // Parse the subPath to extract service name and format
+        var (serviceName, explicitFormat) = ParseServiceSpecPath(subPath);
+
         try
         {
             LogHandlingSpecRequest(serviceName);
@@ -139,13 +157,20 @@ public sealed partial class OpenApiAggregationMiddleware
                 LocalCacheExpiration = options.AggregatedSpecCacheDuration
             };
 
-            var aggregatedDoc = await cache.GetOrCreateAsync(
+            // Use wrapper to serialize OpenApiDocument as JSON string for caching
+            var wrapper = await cache.GetOrCreateAsync(
                 cacheKey,
-                async cancel => await AggregateServiceSpecificationAsync(context.RequestServices, serviceName, cancel),
+                async cancel =>
+                {
+                    var doc = await AggregateServiceSpecificationAsync(context.RequestServices, serviceName, cancel);
+                    return doc == null ? null : await OpenApiDocumentCacheWrapper.FromDocumentAsync(doc, cancel);
+                },
                 entryOptions,
                 tags,
                 context.RequestAborted
             );
+
+            var aggregatedDoc = wrapper == null ? null : await wrapper.ToDocumentAsync(context.RequestAborted);
 
             if (aggregatedDoc == null)
             {
@@ -156,7 +181,7 @@ public sealed partial class OpenApiAggregationMiddleware
             }
 
             LogAggregationSuccess(serviceName);
-            await WriteOpenApiResponse(context, aggregatedDoc);
+            await WriteOpenApiResponse(context, aggregatedDoc, explicitFormat);
         }
         catch (Exception ex)
         {
@@ -384,41 +409,50 @@ public sealed partial class OpenApiAggregationMiddleware
     /// <summary>
     /// Writes the OpenAPI document to the HTTP response, supporting content negotiation.
     /// </summary>
-    private static async Task WriteOpenApiResponse(HttpContext context, OpenApiDocument document)
+    /// <param name="context">The HTTP context.</param>
+    /// <param name="document">The OpenAPI document to write.</param>
+    /// <param name="explicitFormat">Explicit format from URL (json/yaml), or null to use Accept header.</param>
+    private static async Task WriteOpenApiResponse(HttpContext context, OpenApiDocument document, string? explicitFormat = null)
     {
         // Set status code BEFORE writing response body
         context.Response.StatusCode = 200;
 
-        // Determine output format based on Accept header
-        var acceptHeader = context.Request.Headers["Accept"].ToString();
-        var isYaml = acceptHeader.Contains("yaml", StringComparison.OrdinalIgnoreCase);
+        // Determine output format
+        var isYaml = DetermineOutputFormat(context, explicitFormat);
 
-        if (isYaml)
-        {
-            // Serialize as YAML
-            context.Response.ContentType = "application/yaml";
-            await using var memoryStream = new MemoryStream();
-            await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
-            var yamlWriter = new OpenApiYamlWriter(streamWriter);
-            document.SerializeAsV3(yamlWriter);
-            await streamWriter.FlushAsync();
-            memoryStream.Position = 0;
-            await memoryStream.CopyToAsync(context.Response.Body);
-        }
-        else
-        {
-            // Serialize as JSON (default)
-            context.Response.ContentType = "application/json";
-            await using var memoryStream = new MemoryStream();
-            await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
-            var jsonWriter = new OpenApiJsonWriter(streamWriter);
-            document.SerializeAsV3(jsonWriter);
-            await streamWriter.FlushAsync();
-            memoryStream.Position = 0;
-            await memoryStream.CopyToAsync(context.Response.Body);
-        }
+        // Set content type
+        context.Response.ContentType = isYaml ? "application/yaml" : "application/json";
 
+        // Serialize document to response body
+        await using var memoryStream = new MemoryStream();
+        await using var streamWriter = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
+
+        var writer = isYaml
+            ? (IOpenApiWriter)new OpenApiYamlWriter(streamWriter)
+            : new OpenApiJsonWriter(streamWriter);
+
+        document.SerializeAsV3(writer);
+        await streamWriter.FlushAsync();
+
+        memoryStream.Position = 0;
+        await memoryStream.CopyToAsync(context.Response.Body);
         await context.Response.Body.FlushAsync();
+    }
+
+    /// <summary>
+    /// Determines whether to output YAML format based on explicit format or Accept header.
+    /// </summary>
+    private static bool DetermineOutputFormat(HttpContext context, string? explicitFormat)
+    {
+        if (!String.IsNullOrEmpty(explicitFormat))
+        {
+            // Use explicit format from URL
+            return explicitFormat.Equals("yaml", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Fall back to Accept header content negotiation
+        var acceptHeader = context.Request.Headers.Accept.ToString();
+        return acceptHeader.Contains("yaml", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -439,12 +473,50 @@ public sealed partial class OpenApiAggregationMiddleware
             .ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Parses the service spec path to extract service name and explicit format.
+    /// Supports:
+    /// - {serviceName} -> (serviceName, null)
+    /// - {serviceName}/openapi.json -> (serviceName, "json")
+    /// - {serviceName}/openapi.yaml -> (serviceName, "yaml")
+    /// - {serviceName}/openapi.yml -> (serviceName, "yaml")
+    /// </summary>
+    private static (string ServiceName, string? Format) ParseServiceSpecPath(string subPath)
+    {
+        if (String.IsNullOrWhiteSpace(subPath))
+        {
+            return (String.Empty, null);
+        }
+
+        // Check if path ends with /openapi.{extension}
+        if (subPath.EndsWith("/openapi.json", StringComparison.OrdinalIgnoreCase))
+        {
+            var serviceName = subPath[..^"/openapi.json".Length];
+            return (serviceName, "json");
+        }
+
+        if (subPath.EndsWith("/openapi.yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            var serviceName = subPath[..^"/openapi.yaml".Length];
+            return (serviceName, "yaml");
+        }
+
+        if (subPath.EndsWith("/openapi.yml", StringComparison.OrdinalIgnoreCase))
+        {
+            var serviceName = subPath[..^"/openapi.yml".Length];
+            return (serviceName, "yaml");
+        }
+
+        // No explicit format, return full path as service name
+        return (subPath, null);
+    }
+
     // Source-generated logging methods
     [LoggerMessage(Level = LogLevel.Debug, Message = "Handling service list request")]
     private partial void LogHandlingServiceListRequest();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Found {Count} services: {Services}")]
-    private partial void LogFoundServices(int count, string services);
+    private partial void LogFoundServices(int count, List<ServiceInfo>? services);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Error handling service list request")]
     private partial void LogServiceListRequestError(Exception ex);

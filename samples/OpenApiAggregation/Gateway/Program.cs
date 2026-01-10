@@ -1,5 +1,6 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
+using Swashbuckle.AspNetCore.SwaggerUI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,23 @@ var app = builder.Build();
 // Use YARP OpenAPI Aggregation middleware
 app.UseYarpOpenApiAggregation("/api-docs");
 
+// Configure Swagger UI to display aggregated OpenAPI specs
+app.UseSwaggerUI(options =>
+{
+    options.RoutePrefix = "swagger";
+    options.ConfigObject.Urls =
+    [
+        new UrlDescriptor
+        {
+            Url = "/api-docs/user-management", Name = "User Management"
+        },
+        new UrlDescriptor
+        {
+            Url = "/api-docs/product-catalog", Name = "Product Catalog"
+        }
+    ];
+});
+
 // Optional: Add cache invalidation endpoints for testing/admin purposes
 app.MapPost("/admin/cache/invalidate/{serviceName}", async (
     string serviceName,
@@ -39,4 +57,4 @@ app.MapPost("/admin/cache/invalidate-all", async (IOpenApiCacheInvalidator inval
 // Map YARP reverse proxy
 app.MapReverseProxy();
 
-app.Run();
+await app.RunAsync();

@@ -55,9 +55,12 @@ YARP reverse proxy with OpenAPI aggregation that:
 - Merges specs into unified documentation
 
 **Aggregated API Docs**: 
+- `http://localhost:5000/swagger` - **Swagger UI with all aggregated services**
 - `http://localhost:5000/api-docs` - List available services
-- `http://localhost:5000/api-docs/user-management` - Aggregated User API
-- `http://localhost:5000/api-docs/product-catalog` - Aggregated Product API
+- `http://localhost:5000/api-docs/user-management` - User Management API spec
+- `http://localhost:5000/api-docs/product-catalog` - Product Catalog API spec
+
+**Note**: Service names in route metadata (e.g., "User Management") are automatically converted to kebab-case for URLs (e.g., "user-management").
 
 ## Running the Sample
 
@@ -67,28 +70,13 @@ YARP reverse proxy with OpenAPI aggregation that:
 
 ### Quick Start - Run All Services
 
-Choose the appropriate script for your platform:
-
-#### Windows (Batch Script - Recommended)
-```cmd
-cd samples/OpenApiAggregation
-.\run-all-services.cmd
-```
-This opens each service in a separate window. Close the windows to stop services.
-
-#### Windows (PowerShell)
-```powershell
-cd samples/OpenApiAggregation
-.\run-all-services.ps1
-```
-
-#### Linux/Mac (Bash)
 ```bash
 cd samples/OpenApiAggregation
 chmod +x run-all-services.sh
 ./run-all-services.sh
 ```
-Press Ctrl+C to stop all services.
+
+This script starts all three services in the background. Press Ctrl+C to stop all services.
 
 ### Manual Start - Individual Services
 
@@ -117,7 +105,19 @@ The gateway will start on `http://localhost:5000`
 
 ## Testing the Aggregation
 
-### 1. View Available Services
+### 1. View Swagger UI (Recommended)
+Open your browser and navigate to:
+```
+http://localhost:5000/swagger
+```
+
+The Swagger UI displays three API documentation options:
+- **User Management Service**: Individual User Service API
+- **Product Catalog Service**: Individual Product Service API
+
+You can interactively test all endpoints directly from the Swagger UI!
+
+### 2. View Available Services (API)
 ```bash
 curl http://localhost:5000/api-docs
 ```
@@ -125,27 +125,35 @@ curl http://localhost:5000/api-docs
 **Response:**
 ```json
 {
-  "services": ["User Management", "Product Catalog"],
+  "services": [
+    {
+      "name": "Product Catalog",
+      "url": "/api-docs/product-catalog"
+    },
+    {
+      "name": "User Management",
+      "url": "/api-docs/user-management"
+    }
+  ],
   "count": 2
 }
 ```
 
-### 2. Get Aggregated User API Spec
+Each service includes its display name and the URL to fetch its OpenAPI specification.
+
+### 3. Get Individual Service Specs
 ```bash
+# User Management API (JSON)
 curl http://localhost:5000/api-docs/user-management
-```
 
-Returns the complete OpenAPI 3.0 specification for the User Management service with:
-- All reachable paths through YARP
-- Schema names prefixed with "UserService"
-- Proper external paths (as seen by clients)
-
-### 3. Get Aggregated Product API Spec (YAML)
-```bash
+# Product Catalog API (YAML format)
 curl -H "Accept: application/yaml" http://localhost:5000/api-docs/product-catalog
 ```
 
-Returns the OpenAPI specification in YAML format.
+Returns the OpenAPI 3.0 specification for each service with:
+- All reachable paths through YARP
+- Schema names prefixed to avoid conflicts
+- Proper external paths (as seen by clients)
 
 ### 4. Make Proxied Requests
 ```bash
@@ -208,7 +216,15 @@ The gateway is configured in `appsettings.json` with YARP routes and OpenAPI met
 
 ## Key Features Demonstrated
 
-### 1. Path Transform Analysis
+### 1. Swagger UI Integration
+The gateway includes a fully-featured Swagger UI that displays:
+- **Individual views**: Each service's API documentation separately
+- **Interactive testing**: Try out API endpoints directly from the browser
+- **Real-time documentation**: Automatically reflects changes in downstream services (after cache expiration)
+
+Access Swagger UI at: `http://localhost:5000/swagger`
+
+### 2. Path Transform Analysis
 The extension analyzes YARP path transforms to determine which downstream paths are reachable:
 - Routes with `PathPattern`, `PathPrefix`, `PathRemovePrefix` transforms
 - Direct routing without transforms
