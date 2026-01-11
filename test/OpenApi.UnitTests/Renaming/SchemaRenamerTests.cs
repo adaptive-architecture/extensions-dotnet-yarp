@@ -1,6 +1,5 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.OpenApi;
 using Xunit;
 
@@ -8,13 +7,39 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Renaming;
 
 public class SchemaRenamerTests
 {
-    private readonly ILogger<SchemaRenamer> _logger;
+    private readonly TestLogger<SchemaRenamer> _testLogger;
     private readonly SchemaRenamer _renamer;
 
     public SchemaRenamerTests()
     {
-        _logger = NullLogger<SchemaRenamer>.Instance;
-        _renamer = new SchemaRenamer(_logger);
+        _testLogger = new TestLogger<SchemaRenamer>();
+        _renamer = new SchemaRenamer(_testLogger);
+    }
+
+    private class TestLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> LogEntries { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) => null!;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        {
+            LogEntries.Add(new LogEntry
+            {
+                LogLevel = logLevel,
+                Message = formatter(state, exception),
+                EventId = eventId
+            });
+        }
+    }
+
+    private class LogEntry
+    {
+        public LogLevel LogLevel { get; set; }
+        public string Message { get; set; } = String.Empty;
+        public EventId EventId { get; set; }
     }
 
     [Fact]
@@ -137,7 +162,6 @@ public class SchemaRenamerTests
                         Type = JsonSchemaType.Object,
                         Properties = new Dictionary<string, IOpenApiSchema>
                         {
-                            // In v3, use OpenApiSchemaReference instead of schema with Reference property
                             ["address"] = new OpenApiSchemaReference("Address", null, null)
                         }
                     }
@@ -153,12 +177,12 @@ public class SchemaRenamerTests
         Assert.NotNull(result.Components.Schemas);
         Assert.True(result.Components.Schemas.ContainsKey("UserServiceUser"));
         Assert.True(result.Components.Schemas.ContainsKey("UserServiceAddress"));
+        Assert.False(result.Components.Schemas.ContainsKey("User"));
+        Assert.False(result.Components.Schemas.ContainsKey("Address"));
 
         var userSchema = (OpenApiSchema)result.Components.Schemas["UserServiceUser"];
         Assert.NotNull(userSchema.Properties);
         var addressProp = userSchema.Properties["address"];
-
-        // In v3, check if it's an OpenApiSchemaReference and verify the reference ID
         Assert.True(addressProp is OpenApiSchemaReference);
         var addressRef = (OpenApiSchemaReference)addressProp;
         Assert.NotNull(addressRef.Reference);
@@ -219,14 +243,7 @@ public class SchemaRenamerTests
             {
                 Schemas = new Dictionary<string, IOpenApiSchema>
                 {
-                    ["BaseUser"] = new OpenApiSchema
-                    {
-                        Type = JsonSchemaType.Object,
-                        Properties = new Dictionary<string, IOpenApiSchema>
-                        {
-                            ["id"] = new OpenApiSchema { Type = JsonSchemaType.Integer }
-                        }
-                    },
+                    ["BaseUser"] = new OpenApiSchema { Type = JsonSchemaType.Object },
                     ["ExtendedUser"] = new OpenApiSchema
                     {
                         AllOf =
@@ -254,9 +271,9 @@ public class SchemaRenamerTests
         Assert.NotNull(extendedUserSchema.AllOf);
         Assert.Equal(2, extendedUserSchema.AllOf.Count);
         Assert.True(extendedUserSchema.AllOf[0] is OpenApiSchemaReference);
-        var schemaRef = (OpenApiSchemaReference)extendedUserSchema.AllOf[0];
-        Assert.NotNull(schemaRef.Reference);
-        Assert.Equal("UserServiceBaseUser", schemaRef.Reference.Id);
+        var baseUserRef = (OpenApiSchemaReference)extendedUserSchema.AllOf[0];
+        Assert.NotNull(baseUserRef.Reference);
+        Assert.Equal("UserServiceBaseUser", baseUserRef.Reference.Id);
     }
 
     [Fact]
@@ -371,6 +388,7 @@ public class SchemaRenamerTests
         Assert.NotNull(dictionarySchema.AdditionalProperties);
         Assert.True(dictionarySchema.AdditionalProperties is OpenApiSchemaReference);
         var valueRef = (OpenApiSchemaReference)dictionarySchema.AdditionalProperties;
+        Assert.NotNull(valueRef.Reference);
         Assert.Equal("DataSvcValue", valueRef.Reference?.Id);
     }
 
@@ -418,10 +436,14 @@ public class SchemaRenamerTests
 
         // Assert
         var operation = result.Paths["/users"].Operations[HttpMethod.Post];
-        var schema = operation.RequestBody.Content["application/json"].Schema;
-        Assert.True(schema is OpenApiSchemaReference);
-        var schemaRef = (OpenApiSchemaReference)schema;
-        Assert.Equal("UserServiceUser", schemaRef.Reference?.Id);
+        Assert.NotNull(operation.RequestBody);
+        Assert.NotNull(operation.RequestBody.Content);
+        var mediaType = operation.RequestBody.Content["application/json"];
+        Assert.NotNull(mediaType.Schema);
+        Assert.True(mediaType.Schema is OpenApiSchemaReference);
+        var schemaRef = (OpenApiSchemaReference)mediaType.Schema;
+        Assert.NotNull(schemaRef.Reference);
+        Assert.Equal("UserServiceUser", schemaRef.Reference.Id);
     }
 
     [Fact]
@@ -472,10 +494,14 @@ public class SchemaRenamerTests
 
         // Assert
         var operation = result.Paths["/users"].Operations[HttpMethod.Get];
-        var schema = operation.Responses["200"].Content["application/json"].Schema;
-        Assert.True(schema is OpenApiSchemaReference);
-        var schemaRef = (OpenApiSchemaReference)schema;
-        Assert.Equal("UserServiceUserList", schemaRef.Reference?.Id);
+        var response = operation.Responses["200"];
+        Assert.NotNull(response.Content);
+        var mediaType = response.Content["application/json"];
+        Assert.NotNull(mediaType.Schema);
+        Assert.True(mediaType.Schema is OpenApiSchemaReference);
+        var schemaRef = (OpenApiSchemaReference)mediaType.Schema;
+        Assert.NotNull(schemaRef.Reference);
+        Assert.Equal("UserServiceUserList", schemaRef.Reference.Id);
     }
 
     [Fact]
@@ -521,10 +547,12 @@ public class SchemaRenamerTests
 
         // Assert
         var operation = result.Paths["/users"].Operations[HttpMethod.Get];
-        var paramSchema = operation.Parameters[0].Schema;
-        Assert.True(paramSchema is OpenApiSchemaReference);
-        var schemaRef = (OpenApiSchemaReference)paramSchema;
-        Assert.Equal("UserServiceUserFilter", schemaRef.Reference?.Id);
+        var parameter = operation.Parameters[0];
+        Assert.NotNull(parameter.Schema);
+        Assert.True(parameter.Schema is OpenApiSchemaReference);
+        var schemaRef = (OpenApiSchemaReference)parameter.Schema;
+        Assert.NotNull(schemaRef.Reference);
+        Assert.Equal("UserServiceUserFilter", schemaRef.Reference.Id);
     }
 
     [Fact]
@@ -562,12 +590,14 @@ public class SchemaRenamerTests
         var result = _renamer.ApplyPrefix(document, "ErrorSvc");
 
         // Assert
-        Assert.NotNull(result.Components.Responses);
         var response = result.Components.Responses["NotFound"];
-        var schema = response.Content["application/json"].Schema;
-        Assert.True(schema is OpenApiSchemaReference);
-        var schemaRef = (OpenApiSchemaReference)schema;
-        Assert.Equal("ErrorSvcError", schemaRef.Reference?.Id);
+        Assert.NotNull(response.Content);
+        var mediaType = response.Content["application/json"];
+        Assert.NotNull(mediaType.Schema);
+        Assert.True(mediaType.Schema is OpenApiSchemaReference);
+        var schemaRef = (OpenApiSchemaReference)mediaType.Schema;
+        Assert.NotNull(schemaRef.Reference);
+        Assert.Equal("ErrorSvcError", schemaRef.Reference.Id);
     }
 
     [Fact]
@@ -645,8 +675,8 @@ public class SchemaRenamerTests
 
         // Assert
         var container1Schema = (OpenApiSchema)result.Components.Schemas["UserServiceContainer1"];
-        var container1User = container1Schema.Properties["user"];
         var container2Schema = (OpenApiSchema)result.Components.Schemas["UserServiceContainer2"];
+        var container1User = container1Schema.Properties["user"];
         var container2User = container2Schema.Properties["user"];
 
         Assert.True(container1User is OpenApiSchemaReference);
@@ -655,5 +685,117 @@ public class SchemaRenamerTests
         var container2Ref = (OpenApiSchemaReference)container2User;
         Assert.Equal("UserServiceUser", container1Ref.Reference?.Id);
         Assert.Equal("UserServiceUser", container2Ref.Reference?.Id);
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithNullPrefix_LogsNoPrefixSpecified()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = []
+        };
+
+        // Act
+        var result = _renamer.ApplyPrefix(document, null!);
+
+        // Assert
+        Assert.Same(document, result);
+        var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
+        Assert.Single(debugLogs);
+        Assert.Contains("No prefix specified", debugLogs[0].Message);
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithEmptyPrefix_LogsNoPrefixSpecified()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = []
+        };
+
+        // Act
+        var result = _renamer.ApplyPrefix(document, "");
+
+        // Assert
+        Assert.Same(document, result);
+        var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
+        Assert.Single(debugLogs);
+        Assert.Contains("No prefix specified", debugLogs[0].Message);
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithValidPrefix_LogsApplyingPrefix()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents()
+        };
+
+        // Act
+        _ = _renamer.ApplyPrefix(document, "TestPrefix");
+
+        // Assert
+        var infoLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Information).ToList();
+        Assert.Single(infoLogs);
+        Assert.Contains("Applying prefix 'TestPrefix'", infoLogs[0].Message);
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithNoSchemas_LogsNoSchemasToRename()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents()
+        };
+
+        // Act
+        var result = _renamer.ApplyPrefix(document, "TestPrefix");
+
+        // Assert
+        Assert.Same(document, result);
+        var infoLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Information).ToList();
+        var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
+
+        Assert.Single(infoLogs);
+        Assert.Contains("Applying prefix 'TestPrefix'", infoLogs[0].Message);
+
+        Assert.Single(debugLogs);
+        Assert.Contains("No schemas to rename", debugLogs[0].Message);
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithSingleSchema_LogsIndividualSchemaRename()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["SingleSchema"] = new OpenApiSchema { Type = JsonSchemaType.Object }
+                }
+            }
+        };
+
+        // Act
+        _ = _renamer.ApplyPrefix(document, "MyService");
+
+        // Assert
+        var traceLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Trace).ToList();
+        Assert.Single(traceLogs);
+        Assert.Contains("Renamed schema: SingleSchema -> MyServiceSingleSchema", traceLogs[0].Message);
     }
 }
