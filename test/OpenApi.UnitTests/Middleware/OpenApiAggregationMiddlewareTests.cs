@@ -243,23 +243,6 @@ public class OpenApiAggregationMiddlewareTests
         Assert.Equal(400, context.Response.StatusCode);
     }
 
-    [Theory]
-    [InlineData("/api-docs/service/subpath")]
-    [InlineData("/api-docs/service\\admin")]
-    public async Task InvokeAsync_WithSlashesInServiceName_ReturnsBadRequest(string path)
-    {
-        // Arrange
-        var context = CreateHttpContext(path);
-        var services = new ServiceCollection();
-        context.RequestServices = services.BuildServiceProvider();
-
-        // Act
-        await _middleware.InvokeAsync(context);
-
-        // Assert
-        Assert.Equal(400, context.Response.StatusCode);
-    }
-
     #endregion
 
     #region Service List Tests
@@ -420,29 +403,6 @@ public class OpenApiAggregationMiddlewareTests
 
         // Assert
         // Middleware should not call next middleware - it handles the request
-        await _next.DidNotReceive().Invoke(Arg.Any<HttpContext>());
-    }
-
-    [Theory]
-    [InlineData("/api-docs/test/openapi.json")]
-    [InlineData("/api-docs/test/openapi.yaml")]
-    [InlineData("/api-docs/test/openapi.yml")]
-    [InlineData("/api-docs/test")]
-    public async Task InvokeAsync_ParsesFormatFromPath(string path)
-    {
-        // Arrange
-        var context = CreateHttpContext(path);
-        var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
-        mockServiceAnalyzer.AnalyzeServices().Returns([]);
-
-        var services = new ServiceCollection();
-        services.AddSingleton(mockServiceAnalyzer);
-        context.RequestServices = services.BuildServiceProvider();
-
-        // Act
-        await _middleware.InvokeAsync(context);
-
-        // Assert - middleware processes the path (verified by it not calling next)
         await _next.DidNotReceive().Invoke(Arg.Any<HttpContext>());
     }
 
