@@ -104,6 +104,15 @@ public sealed class UnreachablePathInfo
 }
 
 /// <summary>
+/// Context for path reachability analysis operations.
+/// </summary>
+internal sealed record AnalysisContext(
+    OpenApiAggregationOptions Options,
+    Dictionary<string, ReachablePathInfo> ReachablePaths,
+    List<string> Warnings,
+    Dictionary<HttpMethod, OpenApiOperation> Operations);
+
+/// <summary>
 /// Default implementation of <see cref="IPathReachabilityAnalyzer"/>.
 /// Uses route transform analysis to determine if OpenAPI paths are reachable through YARP.
 /// </summary>
@@ -192,47 +201,8 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
                 continue;
             }
 
-            // Try to find a route that makes this path reachable
-            bool foundReachableRoute = false;
-
-            foreach (var mapping in mappingsList)
-            {
-                var analysis = _transformAnalyzer.AnalyzeRoute(mapping.Route);
-
-                // Handle non-analyzable transforms according to strategy
-                if (!analysis.IsAnalyzable)
-                {
-                    var earlyReturn = HandleNonAnalyzable(backendPath, mapping, options, reachablePaths, warnings, operations, analysis, ref foundReachableRoute);
-                    if (earlyReturn != null) return earlyReturn;
-                    continue; // Move to next route
-                }
-
-                // Check if this backend path is reachable through this route
-                if (_transformAnalyzer.IsPathReachable(mapping.Route, backendPath))
-                {
-                    // Map to gateway path
-                    var gatewayPath = _transformAnalyzer.MapBackendToGatewayPath(mapping.Route, backendPath);
-                    if (!String.IsNullOrWhiteSpace(gatewayPath))
-                    {
-                        AddReachablePath(reachablePaths, gatewayPath, backendPath, operations, mapping, analysis);
-                        foundReachableRoute = true;
-                        LogPathReachable(backendPath, mapping.Route.RouteId, gatewayPath);
-                        break; // Found a reachable route, no need to check others
-                    }
-                }
-            }
-
-            // If no route made this path reachable, mark as unreachable
-            if (!foundReachableRoute)
-            {
-                unreachablePaths[backendPath] = new UnreachablePathInfo
-                {
-                    BackendPath = backendPath,
-                    Reason = "No YARP route configuration makes this path accessible",
-                    Operations = operations
-                };
-                LogPathNotReachable(backendPath);
-            }
+            var earlyReturn = AnalyzeSinglePath(backendPath, operations, mappingsList, options, reachablePaths, unreachablePaths, warnings);
+            if (earlyReturn != null) return earlyReturn;
         }
 
         LogAnalysisComplete(reachablePaths.Count, unreachablePaths.Count, warnings.Count);
@@ -243,6 +213,58 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
             UnreachablePaths = unreachablePaths,
             Warnings = warnings
         };
+    }
+
+    private PathReachabilityResult? AnalyzeSinglePath(
+        string backendPath,
+        Dictionary<HttpMethod, OpenApiOperation> operations,
+        List<RouteClusterMapping> mappingsList,
+        OpenApiAggregationOptions options,
+        Dictionary<string, ReachablePathInfo> reachablePaths,
+        Dictionary<string, UnreachablePathInfo> unreachablePaths,
+        List<string> warnings)
+    {
+        bool foundReachableRoute = false;
+
+        foreach (var mapping in mappingsList)
+        {
+            var analysis = _transformAnalyzer.AnalyzeRoute(mapping.Route);
+
+            // Handle non-analyzable transforms according to strategy
+            if (!analysis.IsAnalyzable)
+            {
+                var context = new AnalysisContext(options, reachablePaths, warnings, operations);
+                var earlyReturn = HandleNonAnalyzable(backendPath, mapping, context, analysis, ref foundReachableRoute);
+                if (earlyReturn != null) return earlyReturn;
+                continue;
+            }
+
+            // Check if this backend path is reachable through this route
+            if (_transformAnalyzer.IsPathReachable(mapping.Route, backendPath))
+            {
+                var gatewayPath = _transformAnalyzer.MapBackendToGatewayPath(mapping.Route, backendPath);
+                if (!String.IsNullOrWhiteSpace(gatewayPath))
+                {
+                    AddReachablePath(reachablePaths, gatewayPath, backendPath, operations, mapping, analysis);
+                    foundReachableRoute = true;
+                    LogPathReachable(backendPath, mapping.Route.RouteId, gatewayPath);
+                    break;
+                }
+            }
+        }
+
+        if (!foundReachableRoute)
+        {
+            unreachablePaths[backendPath] = new UnreachablePathInfo
+            {
+                BackendPath = backendPath,
+                Reason = "No YARP route configuration makes this path accessible",
+                Operations = operations
+            };
+            LogPathNotReachable(backendPath);
+        }
+
+        return null;
     }
 
     private static void AddReachablePath(
@@ -268,37 +290,42 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
         }
     }
 
-    private PathReachabilityResult? HandleNonAnalyzable(string backendPath, RouteClusterMapping mapping, OpenApiAggregationOptions options, Dictionary<string, ReachablePathInfo> reachablePaths, List<string> warnings, Dictionary<HttpMethod, OpenApiOperation> operations, RouteTransformAnalysis analysis, ref bool foundReachableRoute)
+    private PathReachabilityResult? HandleNonAnalyzable(
+        string backendPath,
+        RouteClusterMapping mapping,
+        AnalysisContext context,
+        RouteTransformAnalysis analysis,
+        ref bool foundReachableRoute)
     {
         var warning = $"Route {mapping.Route.RouteId} has non-analyzable transforms for path {backendPath}";
 
-        if (options.LogTransformWarnings)
+        if (context.Options.LogTransformWarnings)
         {
             LogTransformWarning(warning);
         }
 
-        switch (options.NonAnalyzableStrategy)
+        switch (context.Options.NonAnalyzableStrategy)
         {
             case NonAnalyzableTransformStrategy.IncludeWithWarning:
-                warnings.Add(warning);
+                context.Warnings.Add(warning);
                 // Treat as reachable with a warning
-                AddReachablePath(reachablePaths, backendPath, backendPath, operations, mapping, analysis);
+                AddReachablePath(context.ReachablePaths, backendPath, backendPath, context.Operations, mapping, analysis);
                 foundReachableRoute = true;
                 break;
 
             case NonAnalyzableTransformStrategy.ExcludeWithWarning:
-                warnings.Add(warning);
+                context.Warnings.Add(warning);
                 // Skip this route, don't mark as reachable
                 break;
 
             case NonAnalyzableTransformStrategy.SkipService:
-                warnings.Add($"Skipping service due to non-analyzable route {mapping.Route.RouteId}");
+                context.Warnings.Add($"Skipping service due to non-analyzable route {mapping.Route.RouteId}");
                 // Return early with empty results
                 return new PathReachabilityResult
                 {
                     ReachablePaths = [],
                     UnreachablePaths = [],
-                    Warnings = warnings
+                    Warnings = context.Warnings
                 };
         }
 

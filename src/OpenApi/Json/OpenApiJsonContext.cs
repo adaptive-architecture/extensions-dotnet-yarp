@@ -17,9 +17,7 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-internal partial class OpenApiJsonContext : JsonSerializerContext
-{
-}
+internal partial class OpenApiJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// Response type for service list endpoint

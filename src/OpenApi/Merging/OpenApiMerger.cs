@@ -159,13 +159,10 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
         var servers = new List<OpenApiServer>();
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var server in documents
+        servers.AddRange(documents
             .Where(d => d.Servers != null)
             .SelectMany(d => d.Servers!)
-            .Where(s => !String.IsNullOrWhiteSpace(s.Url) && seenUrls.Add(s.Url)))
-        {
-            servers.Add(server);
-        }
+            .Where(s => !String.IsNullOrWhiteSpace(s.Url) && seenUrls.Add(s.Url)));
 
         return servers;
     }

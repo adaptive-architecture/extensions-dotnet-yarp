@@ -156,7 +156,7 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
             var (document, diagnostic) = await OpenApiDocument.LoadAsync(stream, cancellationToken: cancellationToken);
             if (diagnostic?.Errors?.Count > 0)
             {
-                LogParsingErrors(fullUrl, String.Join(", ", diagnostic.Errors.Select(e => e.ToString())));
+                LogParsingErrors(fullUrl, diagnostic.Errors);
             }
             if (document == null)
             {
@@ -211,8 +211,8 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to fetch OpenAPI document from {Url}: HTTP {StatusCode}")]
     private partial void LogHttpError(string url, int statusCode);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "OpenAPI document from {Url} has parsing errors: {Errors}")]
-    private partial void LogParsingErrors(string url, string errors);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "OpenAPI document from {Url} has {Errors} parsing errors")]
+    private partial void LogParsingErrors(string url, IList<OpenApiError> errors);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to parse OpenAPI document from {Url}")]
     private partial void LogParsingFailed(string url);

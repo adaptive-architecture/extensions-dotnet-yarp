@@ -146,25 +146,36 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             return null;
         }
 
-        // Handle schema references - In v3, references are separate types
-        if (schema is OpenApiSchemaReference schemaRef && schemaRef.Reference != null)
+        // Handle schema references
+        if (schema is OpenApiSchemaReference schemaRef)
         {
-            var refId = schemaRef.Reference.Id;
-            if (String.IsNullOrWhiteSpace(refId))
-            {
-                return schemaRef; // Return as-is if no valid ID
-            }
-
-            if (nameMap.TryGetValue(refId, out var newName))
-            {
-                // Create a new reference with the updated name
-                return new OpenApiSchemaReference(newName, null, null);
-            }
-            // Return the original reference if no mapping found
-            return new OpenApiSchemaReference(refId, null, null);
+            return UpdateSchemaReference(schemaRef, nameMap);
         }
 
-        // Create a new schema instance to avoid modifying the original
+        // Create and populate new schema instance
+        return CreateUpdatedSchema(schema, nameMap);
+    }
+
+    private static OpenApiSchemaReference UpdateSchemaReference(OpenApiSchemaReference schemaRef, Dictionary<string, string> nameMap)
+    {
+        if (schemaRef.Reference == null)
+        {
+            return schemaRef;
+        }
+
+        var refId = schemaRef.Reference.Id;
+        if (String.IsNullOrWhiteSpace(refId))
+        {
+            return schemaRef;
+        }
+
+        return nameMap.TryGetValue(refId, out var newName)
+            ? new OpenApiSchemaReference(newName, null, null)
+            : new OpenApiSchemaReference(refId, null, null);
+    }
+
+    private static OpenApiSchema CreateUpdatedSchema(IOpenApiSchema schema, Dictionary<string, string> nameMap)
+    {
         var updatedSchema = new OpenApiSchema
         {
             Type = schema.Type,
@@ -192,49 +203,46 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             MinProperties = schema.MinProperties
         };
 
-        // Update Items
+        UpdateSchemaCollections(updatedSchema, schema, nameMap);
+        return updatedSchema;
+    }
+
+    private static void UpdateSchemaCollections(OpenApiSchema updatedSchema, IOpenApiSchema schema, Dictionary<string, string> nameMap)
+    {
         if (schema.Items != null)
         {
             updatedSchema.Items = UpdateSchemaReferences(schema.Items, nameMap);
         }
 
-        // Update AllOf
         if (schema.AllOf != null)
         {
             updatedSchema.AllOf = UpdateSchemaList(schema.AllOf, nameMap);
         }
 
-        // Update OneOf
         if (schema.OneOf != null)
         {
             updatedSchema.OneOf = UpdateSchemaList(schema.OneOf, nameMap);
         }
 
-        // Update AnyOf
         if (schema.AnyOf != null)
         {
             updatedSchema.AnyOf = UpdateSchemaList(schema.AnyOf, nameMap);
         }
 
-        // Update Not
         if (schema.Not != null)
         {
             updatedSchema.Not = UpdateSchemaReferences(schema.Not, nameMap);
         }
 
-        // Update AdditionalProperties
         if (schema.AdditionalProperties != null)
         {
             updatedSchema.AdditionalProperties = UpdateSchemaReferences(schema.AdditionalProperties, nameMap);
         }
 
-        // Update Properties
         if (schema.Properties != null)
         {
             updatedSchema.Properties = schema.Properties.ToDictionary(p => p.Key, p => UpdateSchemaReferences(p.Value, nameMap)!);
         }
-
-        return updatedSchema;
     }
 
     private static OpenApiPathItem? UpdatePathItemReferences(IOpenApiPathItem? pathItem, Dictionary<string, string> nameMap)
