@@ -17,7 +17,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task Gateway_Application_Starts()
     {
         // Arrange & Act
-        await using var factory = new WebApplicationFactory<Gateway.Program>();
+        await using var factory = new WebApplicationFactory<Samples.Gateway.Program>();
         using var client = factory.CreateClient();
 
         // Assert - Gateway should start successfully
@@ -30,7 +30,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_Application_Starts()
     {
         // Arrange & Act
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         // Assert - UserService should start successfully
@@ -42,7 +42,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_Application_Starts()
     {
         // Arrange & Act
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         // Assert - ProductService should start successfully
@@ -54,7 +54,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_GetAllUsers_ReturnsOk()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -75,7 +75,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_GetUserById_ReturnsOk()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -96,7 +96,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_GetUserById_WithInvalidId_ReturnsNotFound()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -110,7 +110,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_GetAllProducts_ReturnsOk()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -131,7 +131,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_GetProductById_ReturnsOk()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -152,7 +152,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_GetProductById_WithInvalidId_ReturnsNotFound()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -166,7 +166,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_GetProductsByCategory_ReturnsFilteredResults()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         // Act
@@ -188,7 +188,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_CreateUser_ReturnsCreated()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         var newUser = new
@@ -216,7 +216,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_CreateProduct_ReturnsCreated()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         var newProduct = new
@@ -246,7 +246,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task UserService_DeleteUser_ReturnsNoContent()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<UserService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.UserService.Program>();
         using var client = factory.CreateClient();
 
         // First, create a user to delete
@@ -271,7 +271,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_UpdateProduct_ReturnsOk()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         var updateRequest = new
@@ -300,7 +300,7 @@ public class OpenApiAggregationIntegrationTests
     public async Task ProductService_UpdateProduct_WithInvalidId_ReturnsNotFound()
     {
         // Arrange
-        await using var factory = new WebApplicationFactory<ProductService.Program>();
+        await using var factory = new WebApplicationFactory<Samples.ProductService.Program>();
         using var client = factory.CreateClient();
 
         var updateRequest = new

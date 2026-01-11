@@ -1,7 +1,7 @@
-using AdaptArch.Extensions.Yarp.ProductService.Models;
+using AdaptArch.Extensions.Yarp.Samples.ProductService.Models;
 using Microsoft.AspNetCore.Mvc;
 
-namespace AdaptArch.Extensions.Yarp.ProductService.Controllers;
+namespace AdaptArch.Extensions.Yarp.Samples.ProductService.Controllers;
 
 /// <summary>
 /// API for managing products in the catalog.

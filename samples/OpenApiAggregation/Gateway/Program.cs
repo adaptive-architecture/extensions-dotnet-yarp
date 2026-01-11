@@ -73,7 +73,7 @@ app.MapReverseProxy();
 await app.RunAsync();
 
 // Make Program class accessible for integration tests
-namespace AdaptArch.Extensions.Yarp.Gateway
+namespace AdaptArch.Extensions.Yarp.Samples.Gateway
 {
     public partial class Program { }
 }

@@ -1,6 +1,9 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
   <PropertyGroup>
+    <RootNamespace>AdaptArch.Extensions.Yarp.Samples.$(MSBuildProjectName)</RootNamespace>
+    <PackageId>AdaptArch.Extensions.Yarp.Samples.$(MSBuildProjectName)</PackageId>
+    <AssemblyName>AdaptArch.Extensions.Yarp.Samples.$(MSBuildProjectName)</AssemblyName>
     <PublishAot>false</PublishAot>
     <SonarQubeExclude>true</SonarQubeExclude>
   </PropertyGroup>

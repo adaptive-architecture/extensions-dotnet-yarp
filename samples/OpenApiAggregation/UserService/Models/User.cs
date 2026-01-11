@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.UserService.Models;
+namespace AdaptArch.Extensions.Yarp.Samples.UserService.Models;
 
 /// <summary>
 /// Represents a user in the system.

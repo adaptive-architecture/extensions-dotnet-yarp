@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.ProductService.Models;
+namespace AdaptArch.Extensions.Yarp.Samples.ProductService.Models;
 
 /// <summary>
 /// Represents a product in the catalog.

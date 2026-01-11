@@ -33,4 +33,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute" Condition="$(AssemblyName.StartsWith('AdaptArch.Extensions.Yarp.Samples.'))" />
+  </ItemGroup>
 </Project>

@@ -1,7 +1,7 @@
-using AdaptArch.Extensions.Yarp.UserService.Models;
+using AdaptArch.Extensions.Yarp.Samples.UserService.Models;
 using Microsoft.AspNetCore.Mvc;
 
-namespace AdaptArch.Extensions.Yarp.UserService.Controllers;
+namespace AdaptArch.Extensions.Yarp.Samples.UserService.Controllers;
 
 /// <summary>
 /// API for managing users.

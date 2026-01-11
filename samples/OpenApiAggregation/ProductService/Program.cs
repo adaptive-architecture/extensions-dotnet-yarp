@@ -50,7 +50,7 @@ app.MapControllers();
 await app.RunAsync();
 
 // Make Program class accessible for integration tests
-namespace AdaptArch.Extensions.Yarp.ProductService
+namespace AdaptArch.Extensions.Yarp.Samples.ProductService
 {
     public partial class Program { }
 }
