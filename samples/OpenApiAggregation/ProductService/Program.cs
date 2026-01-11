@@ -52,5 +52,8 @@ await app.RunAsync();
 // Make Program class accessible for integration tests
 namespace AdaptArch.Extensions.Yarp.Samples.ProductService
 {
-    public partial class Program { }
+    /// <summary>
+    /// Entry point for the Product Service application.
+    /// </summary>
+    public partial class Program;
 }

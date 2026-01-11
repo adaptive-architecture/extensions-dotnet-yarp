@@ -1,0 +1,378 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Product Service API",
+    "description": "API for managing products in the catalog",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/Products": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Gets all products.",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Optional category filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the list of products.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Creates a new product.",
+        "requestBody": {
+          "description": "The product creation request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Products/{id}": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Gets a specific product by ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The product ID.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns the product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Updates an existing product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The product ID to update.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The product update request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Deletes a product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The product ID to delete.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Product deleted successfully."
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The product name.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "The product description.",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "description": "The product price.",
+            "format": "double"
+          },
+          "category": {
+            "type": "string",
+            "description": "The product category.",
+            "nullable": true
+          },
+          "stockQuantity": {
+            "type": "integer",
+            "description": "Initial stock quantity.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request model for creating a new product."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The unique identifier for the product.",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "description": "The product name.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "The product description.",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "description": "The product price.",
+            "format": "double"
+          },
+          "category": {
+            "type": "string",
+            "description": "The product category.",
+            "nullable": true
+          },
+          "stockQuantity": {
+            "type": "integer",
+            "description": "Stock quantity available.",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date the product was created.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a product in the catalog."
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The updated product name.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "The updated product description.",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "description": "The updated product price.",
+            "format": "double"
+          },
+          "category": {
+            "type": "string",
+            "description": "The updated product category.",
+            "nullable": true
+          },
+          "stockQuantity": {
+            "type": "integer",
+            "description": "The updated stock quantity.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request model for updating a product."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Products"
+    }
+  ]
+}

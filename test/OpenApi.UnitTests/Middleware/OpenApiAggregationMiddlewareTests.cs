@@ -65,7 +65,7 @@ public class OpenApiAggregationMiddlewareTests
     private class LogEntry
     {
         public LogLevel LogLevel { get; set; }
-        public string Message { get; set; } = string.Empty;
+        public string Message { get; set; } = String.Empty;
         public EventId EventId { get; set; }
     }
 

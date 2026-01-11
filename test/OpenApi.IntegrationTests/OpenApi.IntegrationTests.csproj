@@ -20,4 +20,9 @@
     <ProjectReference Include="..\..\samples\OpenApiAggregation\Gateway\Gateway.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\samples\OpenApiAggregation\UserService\UserService.openapi.json" CopyToOutputDirectory="PreserveNewest" Link="TestData\UserService.openapi.json" />
+    <None Include="..\..\samples\OpenApiAggregation\ProductService\ProductService.openapi.json" CopyToOutputDirectory="PreserveNewest" Link="TestData\ProductService.openapi.json" />
+  </ItemGroup>
+
 </Project>

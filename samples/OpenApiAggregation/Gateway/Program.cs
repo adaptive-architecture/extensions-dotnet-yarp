@@ -75,5 +75,8 @@ await app.RunAsync();
 // Make Program class accessible for integration tests
 namespace AdaptArch.Extensions.Yarp.Samples.Gateway
 {
-    public partial class Program { }
+    /// <summary>
+    /// Entry point for the Gateway application that aggregates OpenAPI specifications.
+    /// </summary>
+    public partial class Program;
 }

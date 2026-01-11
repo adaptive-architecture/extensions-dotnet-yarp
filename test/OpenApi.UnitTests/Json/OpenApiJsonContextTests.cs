@@ -207,7 +207,7 @@ public class OpenApiJsonContextTests
     [Fact]
     public void String_CanSerializeAndDeserialize()
     {
-        var value = "test string";
+        const string value = "test string";
 
         var json = JsonSerializer.Serialize(value, OpenApiJsonContext.Default.String);
         var deserialized = JsonSerializer.Deserialize(json, OpenApiJsonContext.Default.String);

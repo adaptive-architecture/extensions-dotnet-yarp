@@ -68,7 +68,7 @@ public class OpenApiMiddlewareIntegrationTests
         var serviceList = JsonSerializer.Deserialize<JsonElement>(content);
         var services = serviceList.GetProperty("services").EnumerateArray().ToList();
 
-        var serviceNames = services.Select(s => s.GetProperty("name").GetString()).ToList();
+        var serviceNames = services.Select(s => s.GetProperty("name").GetString());
 
         Assert.Contains("User Management", serviceNames);
         Assert.Contains("Product Catalog", serviceNames);
@@ -87,9 +87,7 @@ public class OpenApiMiddlewareIntegrationTests
         // Assert
         var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var serviceList = JsonSerializer.Deserialize<JsonElement>(content);
-        var services = serviceList.GetProperty("services").EnumerateArray().ToList();
-
-        foreach (var service in services)
+        foreach (var service in serviceList.GetProperty("services").EnumerateArray().ToList())
         {
             var url = service.GetProperty("url").GetString();
             Assert.NotNull(url);
