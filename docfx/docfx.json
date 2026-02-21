@@ -29,7 +29,8 @@
     "resource": [
       {
         "files": [
-          "images/**"
+          "images/**",
+          "llm.txt"
         ]
       }
     ],
@@ -45,6 +46,8 @@
       "_appFaviconPath": "images/favicon.ico",
       "_enableSearch": true,
       "_disableContribution": true,
+      "_appFooter": "Extensions for dotnet YARP - <a href=\"https://github.com/adaptive-architecture/extensions-dotnet-yarp\">GitHub</a>",
+      "_appDescription": "Extensions for dotnet YARP providing OpenAPI aggregation and authentication for reverse proxy gateways.",
       "pdf": false
     }
   }

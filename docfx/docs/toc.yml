@@ -1,0 +1,18 @@
+- name: OpenAPI Aggregation
+  items:
+  - name: Overview
+    href: openapi-aggregation.md
+  - name: Getting Started
+    href: openapi-getting-started.md
+  - name: Configuration
+    href: openapi-configuration.md
+  - name: Caching
+    href: openapi-caching.md
+  - name: Advanced Topics
+    href: openapi-advanced.md
+  - name: Troubleshooting
+    href: openapi-troubleshooting.md
+- name: Authentication
+  items:
+  - name: Overview
+    href: auth.md

@@ -1,0 +1,27 @@
+# Extensions for dotnet YARP
+
+> A collection of extensions for the dotnet YARP (Yet Another Reverse Proxy) reverse proxy. Provides OpenAPI specification aggregation from downstream services and authentication/authorization extensions. Targets .NET 10.0+.
+
+The project provides two NuGet packages:
+
+- `AdaptArch.Extensions.Yarp.OpenApi` — Automatic OpenAPI aggregation from downstream services behind a YARP reverse proxy, with path reachability analysis, schema collision avoidance, component pruning, content negotiation (JSON/YAML), and HybridCache integration.
+- `AdaptArch.Extensions.Yarp.Auth` — Authentication and authorization extensions for YARP (early development).
+
+## Docs
+
+- [OpenAPI Aggregation Overview](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-aggregation.html): Architecture, processing pipeline, features, and package dependencies
+- [Getting Started](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-getting-started.html): Prerequisites, installation, basic setup, YARP configuration, and metadata reference
+- [Configuration Reference](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-configuration.html): All configuration options for cache, fetching, discovery, transforms, and customization delegates
+- [Caching](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-caching.html): Two-level cache architecture, cache invalidation API, and recommended settings
+- [Advanced Topics](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-advanced.html): Path reachability analysis, document pruning, schema renaming, transform analysis, and document merging
+- [Troubleshooting](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/openapi-troubleshooting.html): Common issues and solutions for services, paths, caching, schemas, and transforms
+- [Authentication Overview](https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/auth.html): Authentication and authorization extension overview and installation
+
+## API Reference
+
+- [API Documentation](https://adaptive-architecture.github.io/extensions-dotnet-yarp/api/): Auto-generated API reference from source code
+
+## Optional
+
+- [Project Home](https://adaptive-architecture.github.io/extensions-dotnet-yarp/): Landing page with quick start example
+- [GitHub Repository](https://github.com/adaptive-architecture/extensions-dotnet-yarp): Source code and issue tracker

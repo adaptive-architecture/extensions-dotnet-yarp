@@ -183,6 +183,15 @@ When implementing new features:
 
 6. Add sample demonstrating real-world usage
 
+### LLM.txt (`docfx/llm.txt`)
+
+The `docfx/llm.txt` file follows the [llmstxt.org](https://llmstxt.org/) specification and is served at the root of the GitHub Pages site. It provides a machine-readable summary of the project documentation for AI agents.
+
+- **Keep it in sync** with documentation changes: when docs pages are added, removed, or renamed, update `llm.txt` accordingly
+- It is included in the site build via the `resource` section in `docfx/docfx.json`
+- Links must point to the rendered HTML pages at `https://adaptive-architecture.github.io/extensions-dotnet-yarp/docs/<page>.html`
+- Follow the spec structure: H1 (project name), blockquote (summary), body (packages), H2 sections (file lists with URLs)
+
 ### OpenAPI Spec Files (`*.openapi.json`)
 
 **WARNING: NEVER edit `*.openapi.json` files manually.** They are auto-generated during `dotnet build` by `Microsoft.Extensions.ApiDescription.Server`. The source of truth is the C# controllers and their XML doc comments.
