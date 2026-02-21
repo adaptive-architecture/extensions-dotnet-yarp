@@ -664,4 +664,98 @@ public class OpenApiMergerTests
         Assert.True(result.Paths.ContainsKey("/path2"));
         Assert.True(result.Paths.ContainsKey("/path3"));
     }
+
+    [Fact]
+    public void MergeDocuments_SingleDocument_PreservesContact()
+    {
+        // Arrange
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo
+            {
+                Title = "API",
+                Version = "1.0",
+                Contact = new OpenApiContact
+                {
+                    Name = "Test Team",
+                    Url = new Uri("https://example.com")
+                }
+            },
+            Paths = []
+        };
+
+        // Act
+        var result = _merger.MergeDocuments([document], "Service");
+
+        // Assert
+        Assert.NotNull(result.Info.Contact);
+        Assert.Equal("Test Team", result.Info.Contact.Name);
+        Assert.Equal("https://example.com/", result.Info.Contact.Url?.ToString());
+    }
+
+    [Fact]
+    public void MergeDocuments_MultipleDocuments_UsesFirstContact()
+    {
+        // Arrange
+        var doc1 = new OpenApiDocument
+        {
+            Info = new OpenApiInfo
+            {
+                Title = "API 1",
+                Version = "1.0",
+                Contact = new OpenApiContact
+                {
+                    Name = "First Team",
+                    Url = new Uri("https://first.example.com")
+                }
+            },
+            Paths = []
+        };
+
+        var doc2 = new OpenApiDocument
+        {
+            Info = new OpenApiInfo
+            {
+                Title = "API 2",
+                Version = "1.0",
+                Contact = new OpenApiContact
+                {
+                    Name = "Second Team",
+                    Url = new Uri("https://second.example.com")
+                }
+            },
+            Paths = []
+        };
+
+        // Act
+        var result = _merger.MergeDocuments([doc1, doc2], "Combined Service");
+
+        // Assert
+        Assert.NotNull(result.Info.Contact);
+        Assert.Equal("First Team", result.Info.Contact.Name);
+        Assert.Equal("https://first.example.com/", result.Info.Contact.Url?.ToString());
+    }
+
+    [Fact]
+    public void MergeDocuments_NoContact_InfoContactIsNull()
+    {
+        // Arrange
+        var doc1 = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "API 1", Version = "1.0" },
+            Paths = []
+        };
+
+        var doc2 = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "API 2", Version = "1.0" },
+            Paths = []
+        };
+
+        // Act
+        var result = _merger.MergeDocuments([doc1, doc2], "Combined Service");
+
+        // Assert
+        Assert.Null(result.Info.Contact);
+    }
 }

@@ -21,6 +21,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Gets all users.
     /// </summary>
+    /// <remarks>Returns all registered users in the system.</remarks>
     /// <returns>A list of all users.</returns>
     /// <response code="200">Returns the list of users.</response>
     [HttpGet]
@@ -33,6 +34,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Gets a specific user by ID.
     /// </summary>
+    /// <remarks>Looks up a user by their unique numeric identifier.</remarks>
     /// <param name="id">The user ID.</param>
     /// <returns>The requested user.</returns>
     /// <response code="200">Returns the user.</response>
@@ -53,6 +55,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Creates a new user.
     /// </summary>
+    /// <remarks>Validates the request and creates a new user with a generated ID.</remarks>
     /// <param name="request">The user creation request.</param>
     /// <returns>The created user.</returns>
     /// <response code="201">User created successfully.</response>
@@ -78,6 +81,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Deletes a user.
     /// </summary>
+    /// <remarks>Permanently removes the user with the given ID.</remarks>
     /// <param name="id">The user ID to delete.</param>
     /// <returns>No content.</returns>
     /// <response code="204">User deleted successfully.</response>

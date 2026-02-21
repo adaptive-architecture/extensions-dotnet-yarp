@@ -63,6 +63,14 @@ jobs:
       - name: Run Unit Tests
         run: sh ./pipeline/unit-test.sh
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Lint OpenAPI specs
+        run: sh ./pipeline/lint-openapi.sh
+
       - name: SonarQube End
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
         env:

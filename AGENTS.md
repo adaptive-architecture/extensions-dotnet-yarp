@@ -183,6 +183,15 @@ When implementing new features:
 
 6. Add sample demonstrating real-world usage
 
+### OpenAPI Spec Files (`*.openapi.json`)
+
+**WARNING: NEVER edit `*.openapi.json` files manually.** They are auto-generated during `dotnet build` by `Microsoft.Extensions.ApiDescription.Server`. The source of truth is the C# controllers and their XML doc comments.
+
+**How it works:**
+- `.csproj` files set `<OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>` and `<OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)</OpenApiDocumentsDirectory>`
+- `Microsoft.Extensions.ApiDescription.Server` MSBuild target runs during build, analyzes the compiled assembly + XML docs, and outputs `{ProjectName}.openapi.json` into the project directory
+- To update these files, modify the controllers/models/XML comments and rebuild
+
 ### Running Integration Tests
 
 Integration tests for Redis and Postgres use TestContainers:

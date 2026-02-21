@@ -20,8 +20,8 @@ public class DownstreamFetchFailureTests : IAsyncLifetime
     private WebApplication _failingBackendApp = null!;
     private WebApplication _gatewayApp = null!;
     private HttpClient _gatewayClient = null!;
-    private string _backendUrl = string.Empty;
-    private string _gatewayUrl = string.Empty;
+    private string _backendUrl = String.Empty;
+    private string _gatewayUrl = String.Empty;
     private BackendBehavior _backendBehavior = BackendBehavior.NotFound;
 
     public async ValueTask InitializeAsync()

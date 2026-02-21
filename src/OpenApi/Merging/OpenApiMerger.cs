@@ -124,7 +124,8 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
             {
                 Title = serviceName,
                 Version = source.Info?.Version ?? "1.0.0",
-                Description = source.Info?.Description
+                Description = source.Info?.Description,
+                Contact = source.Info?.Contact
             },
             Servers = source.Servers != null ? new List<OpenApiServer>(source.Servers) : [],
             Paths = source.Paths,
@@ -150,7 +151,8 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
             Version = firstDoc.Info?.Version ?? "1.0.0",
             Description = descriptions.Count > 0
                 ? $"Aggregated API for {serviceName}. Combined from {documents.Count} service(s)."
-                : null
+                : null,
+            Contact = documents.FirstOrDefault(d => d.Info?.Contact != null)?.Info?.Contact
         };
     }
 
@@ -169,10 +171,9 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
 
     private static List<OpenApiSecurityRequirement> MergeSecurity(List<OpenApiDocument> documents)
     {
-        return documents
+        return [.. documents
             .Where(d => d.Security != null)
-            .SelectMany(d => d.Security!)
-            .ToList();
+            .SelectMany(d => d.Security!)];
     }
 
     private static HashSet<OpenApiTag> MergeTags(List<OpenApiDocument> documents)

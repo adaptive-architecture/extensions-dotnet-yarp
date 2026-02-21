@@ -1,0 +1,13 @@
+extends:
+  - spectral:oas
+
+rules:
+  # Enforce no orphaned schemas
+  oas3-unused-component: error
+
+  # Every operation must have an operationId
+  operation-operationId: error
+
+  # Examples should validate against schemas
+  oas3-valid-schema-example: warn
+

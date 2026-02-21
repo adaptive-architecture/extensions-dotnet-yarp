@@ -357,3 +357,5 @@ coverage/
 *.lcov
 
 .sonarqube/
+.claude/*.local.*
+.lint-tmp/

@@ -9,8 +9,18 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Product Service API",
         Version = "v1",
-        Description = "API for managing products in the catalog"
+        Description = "API for managing products in the catalog",
+        Contact = new Microsoft.OpenApi.OpenApiContact
+        {
+            Name = "Adaptive Architecture",
+            Url = new Uri("https://github.com/adaptive-architecture")
+        }
     });
+
+    options.CustomOperationIds(apiDesc =>
+        apiDesc.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor descriptor
+            ? descriptor.ActionName
+            : null);
 
     // Include XML comments if available
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";

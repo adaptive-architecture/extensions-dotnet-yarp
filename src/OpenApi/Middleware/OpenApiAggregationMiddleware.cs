@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Caching;
@@ -197,6 +197,13 @@ public sealed partial class OpenApiAggregationMiddleware
                 return;
             }
 
+            aggregatedDoc.Servers = [.. options.ConfigureServers(context)];
+
+            if (options.ConfigureInfo != null)
+            {
+                aggregatedDoc.Info = options.ConfigureInfo(aggregatedDoc.Info, context);
+            }
+
             LogAggregationSuccess(serviceName);
             await WriteOpenApiResponse(context, aggregatedDoc, explicitFormat);
         }
@@ -267,7 +274,8 @@ public sealed partial class OpenApiAggregationMiddleware
     }
 
     /// <summary>
-    /// Processes all routes for a service specification.
+    /// Processes all routes for a service specification, grouped by cluster.
+    /// Routes sharing the same cluster fetch the OpenAPI document once and analyze reachability across all routes.
     /// </summary>
     private async Task<List<OpenApiDocument>> ProcessServiceRoutesAsync(
         IServiceProvider serviceProvider,
@@ -282,27 +290,31 @@ public sealed partial class OpenApiAggregationMiddleware
         var documentPruner = serviceProvider.GetRequiredService<IOpenApiDocumentPruner>();
         var schemaRenamer = serviceProvider.GetRequiredService<ISchemaRenamer>();
 
-        foreach (var routeMapping in serviceSpec.Routes)
+        // Group routes by cluster to avoid fetching the same document multiple times
+        var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId);
+
+        foreach (var clusterGroup in clusterGroups)
         {
             try
             {
-                var document = await ProcessSingleRouteAsync(
+                var document = await ProcessClusterRoutesAsync(
                     documentFetcher,
                     reachabilityAnalyzer,
                     documentPruner,
                     schemaRenamer,
-                    routeMapping,
+                    clusterGroup.Key,
+                    [.. clusterGroup],
                     cancellationToken);
 
                 if (document != null)
                 {
                     processedDocuments.Add(document);
-                    LogRouteProcessed(routeMapping.Route.RouteId);
+                    LogClusterProcessed(clusterGroup.Key);
                 }
             }
             catch (Exception ex)
             {
-                LogRouteProcessingError(routeMapping.Route.RouteId, ex);
+                LogClusterProcessingError(clusterGroup.Key, ex);
             }
         }
 
@@ -310,26 +322,28 @@ public sealed partial class OpenApiAggregationMiddleware
     }
 
     /// <summary>
-    /// Processes a single route to produce an OpenAPI document.
+    /// Processes all routes for a single cluster: fetches the document once,
+    /// analyzes reachability across all routes, prunes, and applies prefix.
     /// </summary>
-    private async Task<OpenApiDocument?> ProcessSingleRouteAsync(
+    private async Task<OpenApiDocument?> ProcessClusterRoutesAsync(
         IOpenApiDocumentFetcher documentFetcher,
         IPathReachabilityAnalyzer reachabilityAnalyzer,
         IOpenApiDocumentPruner documentPruner,
         ISchemaRenamer schemaRenamer,
-        RouteClusterMapping routeMapping,
+        string clusterId,
+        List<RouteClusterMapping> routeMappings,
         CancellationToken cancellationToken)
     {
-        var clusterId = routeMapping.Cluster.ClusterId;
-        LogProcessingRoute(routeMapping.Route.RouteId, clusterId);
+        LogProcessingCluster(clusterId, routeMappings.Count);
 
-        var baseUrl = GetClusterBaseUrl(routeMapping, clusterId);
+        var firstMapping = routeMappings[0];
+        var baseUrl = GetClusterBaseUrl(firstMapping, clusterId);
         if (baseUrl == null)
         {
             return null;
         }
 
-        var openApiPath = routeMapping.ClusterOpenApiConfig.OpenApiPath ?? DefaultOpenApiPath;
+        var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath ?? DefaultOpenApiPath;
         var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
 
         if (document == null)
@@ -340,13 +354,21 @@ public sealed partial class OpenApiAggregationMiddleware
 
         LogFetchedDocument(document.Paths?.Count ?? 0);
 
-        var prunedDocument = PruneDocumentPaths(reachabilityAnalyzer, documentPruner, document, routeMapping, clusterId);
+        // Analyze reachability across all routes for this cluster at once
+        var reachabilityResult = reachabilityAnalyzer.AnalyzePathReachability(document, routeMappings);
+        LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
+
+        var prunedDocument = documentPruner.PruneDocument(document, reachabilityResult);
+
         if (prunedDocument == null)
         {
+            LogDocumentEmpty(clusterId);
             return null;
         }
 
-        return ApplySchemaPrefix(schemaRenamer, prunedDocument, routeMapping, clusterId);
+        LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
+
+        return ApplySchemaPrefix(schemaRenamer, prunedDocument, firstMapping, clusterId);
     }
 
     /// <summary>
@@ -369,31 +391,6 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         return baseUrl;
-    }
-
-    /// <summary>
-    /// Prunes unreachable paths from the document.
-    /// </summary>
-    private OpenApiDocument? PruneDocumentPaths(
-        IPathReachabilityAnalyzer reachabilityAnalyzer,
-        IOpenApiDocumentPruner documentPruner,
-        OpenApiDocument document,
-        RouteClusterMapping routeMapping,
-        string clusterId)
-    {
-        var reachabilityResult = reachabilityAnalyzer.AnalyzePathReachability(document, routeMapping);
-        LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
-
-        var prunedDocument = documentPruner.PruneDocument(document, reachabilityResult);
-
-        if (prunedDocument == null)
-        {
-            LogDocumentEmpty(clusterId);
-            return null;
-        }
-
-        LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
-        return prunedDocument;
     }
 
     /// <summary>
@@ -559,8 +556,8 @@ public sealed partial class OpenApiAggregationMiddleware
     [LoggerMessage(Level = LogLevel.Debug, Message = "Found {RouteCount} routes for service: {ServiceName}")]
     private partial void LogFoundRoutes(int routeCount, string serviceName);
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Processing route {RouteId} for cluster {ClusterId}")]
-    private partial void LogProcessingRoute(string routeId, string clusterId);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Processing cluster {ClusterId} with {RouteCount} route(s)")]
+    private partial void LogProcessingCluster(string clusterId, int routeCount);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Cluster {ClusterId} has no destinations, skipping")]
     private partial void LogNoDestinations(string clusterId);
@@ -589,11 +586,11 @@ public sealed partial class OpenApiAggregationMiddleware
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to apply schema prefix for cluster: {ClusterId}")]
     private partial void LogPrefixFailed(string clusterId);
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Successfully processed route {RouteId}")]
-    private partial void LogRouteProcessed(string routeId);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Successfully processed cluster {ClusterId}")]
+    private partial void LogClusterProcessed(string clusterId);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Error processing route {RouteId}")]
-    private partial void LogRouteProcessingError(string routeId, Exception ex);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Error processing cluster {ClusterId}")]
+    private partial void LogClusterProcessingError(string clusterId, Exception ex);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "No documents were successfully processed for service: {ServiceName}")]
     private partial void LogNoDocumentsProcessed(string serviceName);

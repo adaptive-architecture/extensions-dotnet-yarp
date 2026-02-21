@@ -1,3 +1,6 @@
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.OpenApi;
+
 namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 /// <summary>
@@ -112,6 +115,34 @@ public class OpenApiAggregationOptions
     /// Defaults to true for better diagnostics.
     /// </remarks>
     public bool LogTransformWarnings { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a delegate that configures the <c>info</c> block of the aggregated OpenAPI document.
+    /// </summary>
+    /// <remarks>
+    /// The delegate receives the merged <see cref="OpenApiInfo"/> (with contact already populated
+    /// from downstream services) and the current <see cref="HttpContext"/>, and returns a
+    /// (possibly modified) <see cref="OpenApiInfo"/>.
+    /// When <c>null</c> (the default), the merged info passes through as-is.
+    /// </remarks>
+    public Func<OpenApiInfo, HttpContext, OpenApiInfo>? ConfigureInfo { get; set; }
+
+    /// <summary>
+    /// Gets or sets a delegate that configures the <c>servers</c> block of the aggregated OpenAPI document.
+    /// </summary>
+    /// <remarks>
+    /// The delegate receives the current <see cref="HttpContext"/> and returns the list of
+    /// <see cref="OpenApiServer"/> entries to set on the aggregated document.
+    /// By default, injects the gateway's own URL derived from the incoming request.
+    /// </remarks>
+    public Func<HttpContext, IList<OpenApiServer>> ConfigureServers { get; set; } = context =>
+    [
+        new OpenApiServer
+        {
+            Url = $"{context.Request.Scheme}://{context.Request.Host}",
+            Description = "API Gateway"
+        }
+    ];
 }
 
 /// <summary>

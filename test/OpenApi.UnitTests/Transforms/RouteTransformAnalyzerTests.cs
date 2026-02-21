@@ -366,7 +366,7 @@ public class RouteTransformAnalyzerTests
     }
 
     [Fact]
-    public void MapBackendToGatewayPath_WithEmptyBackendPath_ReturnsEmpty()
+    public void MapBackendToGatewayPath_WithEmptyBackendPath_ReturnsNull()
     {
         // Arrange
         var route = new RouteConfig
@@ -382,7 +382,7 @@ public class RouteTransformAnalyzerTests
         var result = analyzer.MapBackendToGatewayPath(route, String.Empty);
 
         // Assert
-        Assert.Equal(String.Empty, result);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -520,7 +520,7 @@ public class RouteTransformAnalyzerTests
     }
 
     [Fact]
-    public void MapBackendToGatewayPath_WithDirectMapping_ReturnsBackendPath()
+    public void MapBackendToGatewayPath_WithDirectMapping_NonMatchingPath_ReturnsNull()
     {
         // Arrange
         var route = new RouteConfig
@@ -536,6 +536,206 @@ public class RouteTransformAnalyzerTests
         var result = analyzer.MapBackendToGatewayPath(route, "/users/123");
 
         // Assert
-        Assert.Equal("/users/123", result);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_MatchingCatchAll_ReturnsPath()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "direct-route",
+            Match = new RouteMatch { Path = "/api/{**catch-all}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users/123");
+
+        // Assert
+        Assert.Equal("/api/users/123", result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_ExactPathMatch_ReturnsPath()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "exact-route",
+            Match = new RouteMatch { Path = "/api/users" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users");
+
+        // Assert
+        Assert.Equal("/api/users", result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_ExactPathNonMatch_ReturnsNull()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "exact-route",
+            Match = new RouteMatch { Path = "/api/users" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/orders");
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_ParameterMatchesSingleSegment()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "param-route",
+            Match = new RouteMatch { Path = "/api/users/{id}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users/123");
+
+        // Assert
+        Assert.Equal("/api/users/123", result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_ParameterDoesNotMatchSubPaths()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "param-route",
+            Match = new RouteMatch { Path = "/api/users/{id}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users/123/details");
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_CatchAllMatchesSubPaths()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "catchall-route",
+            Match = new RouteMatch { Path = "/api/{**remainder}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users/123/details");
+
+        // Assert
+        Assert.Equal("/api/users/123/details", result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_CatchAllMatchesZeroSegments()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "catchall-route",
+            Match = new RouteMatch { Path = "/api/{**remainder}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api");
+
+        // Assert
+        Assert.Equal("/api", result);
+    }
+
+    [Fact]
+    public void MapBackendToGatewayPath_WithDirectMapping_CaseInsensitiveMatching()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "case-route",
+            Match = new RouteMatch { Path = "/Api/Users" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.MapBackendToGatewayPath(route, "/api/users");
+
+        // Assert
+        Assert.Equal("/api/users", result);
+    }
+
+    [Fact]
+    public void IsPathReachable_WithDirectMapping_MatchingPath_ReturnsTrue()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "direct-route",
+            Match = new RouteMatch { Path = "/api/users/{id}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.IsPathReachable(route, "/api/users/123");
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsPathReachable_WithDirectMapping_NonMatchingPath_ReturnsFalse()
+    {
+        // Arrange
+        var route = new RouteConfig
+        {
+            RouteId = "direct-route",
+            Match = new RouteMatch { Path = "/api/users/{id}" },
+            Transforms = null
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var result = analyzer.IsPathReachable(route, "/api/orders/123");
+
+        // Assert
+        Assert.False(result);
     }
 }

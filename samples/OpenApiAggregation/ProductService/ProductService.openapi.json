@@ -3,6 +3,10 @@
   "info": {
     "title": "Product Service API",
     "description": "API for managing products in the catalog",
+    "contact": {
+      "name": "Adaptive Architecture",
+      "url": "https://github.com/adaptive-architecture"
+    },
     "version": "v1"
   },
   "paths": {
@@ -12,6 +16,8 @@
           "Products"
         ],
         "summary": "Gets all products.",
+        "description": "Returns all products, optionally filtered by category.",
+        "operationId": "GetAll",
         "parameters": [
           {
             "name": "category",
@@ -43,6 +49,8 @@
           "Products"
         ],
         "summary": "Creates a new product.",
+        "description": "Validates the request and creates a new product with a generated ID.",
+        "operationId": "Create",
         "requestBody": {
           "description": "The product creation request.",
           "content": {
@@ -93,6 +101,8 @@
           "Products"
         ],
         "summary": "Gets a specific product by ID.",
+        "description": "Looks up a product by its unique numeric identifier.",
+        "operationId": "GetById",
         "parameters": [
           {
             "name": "id",
@@ -133,6 +143,8 @@
           "Products"
         ],
         "summary": "Updates an existing product.",
+        "description": "Replaces all fields of the product with the given values.",
+        "operationId": "Update",
         "parameters": [
           {
             "name": "id",
@@ -203,6 +215,8 @@
           "Products"
         ],
         "summary": "Deletes a product.",
+        "description": "Permanently removes the product with the given ID.",
+        "operationId": "Delete",
         "parameters": [
           {
             "name": "id",

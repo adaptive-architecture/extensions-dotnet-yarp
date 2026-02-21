@@ -95,20 +95,20 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             foreach (var (oldName, schema) in document.Components.Schemas)
             {
                 var newName = schemaNameMap[oldName];
-                renamedDocument.Components.Schemas[newName] = (OpenApiSchema)UpdateSchemaReferences(schema, schemaNameMap)!;
+                renamedDocument.Components.Schemas[newName] = (OpenApiSchema)UpdateSchemaReferences(schema, schemaNameMap, renamedDocument)!;
                 LogRenamedSchema(oldName, newName);
             }
         }
 
         // Copy and update other components
-        CopyComponentsWithUpdatedReferences(document.Components, renamedDocument.Components, schemaNameMap);
+        CopyComponentsWithUpdatedReferences(document.Components, renamedDocument.Components, schemaNameMap, renamedDocument);
 
         // Update paths and operations
         if (document.Paths != null)
         {
             foreach (var (path, pathItem) in document.Paths)
             {
-                renamedDocument.Paths[path] = UpdatePathItemReferences((OpenApiPathItem)pathItem, schemaNameMap)!;
+                renamedDocument.Paths[path] = UpdatePathItemReferences((OpenApiPathItem)pathItem, schemaNameMap, renamedDocument)!;
             }
         }
 
@@ -134,12 +134,12 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         return nameMap;
     }
 
-    private static List<IOpenApiSchema> UpdateSchemaList(IEnumerable<IOpenApiSchema> schemas, Dictionary<string, string> nameMap)
+    private static List<IOpenApiSchema> UpdateSchemaList(IEnumerable<IOpenApiSchema> schemas, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
-        return schemas.Select(s => UpdateSchemaReferences(s, nameMap)!).ToList();
+        return [.. schemas.Select(s => UpdateSchemaReferences(s, nameMap, hostDocument)!)];
     }
 
-    private static IOpenApiSchema? UpdateSchemaReferences(IOpenApiSchema? schema, Dictionary<string, string> nameMap)
+    private static IOpenApiSchema? UpdateSchemaReferences(IOpenApiSchema? schema, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (schema == null)
         {
@@ -149,14 +149,14 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         // Handle schema references
         if (schema is OpenApiSchemaReference schemaRef)
         {
-            return UpdateSchemaReference(schemaRef, nameMap);
+            return UpdateSchemaReference(schemaRef, nameMap, hostDocument);
         }
 
         // Create and populate new schema instance
-        return CreateUpdatedSchema(schema, nameMap);
+        return CreateUpdatedSchema(schema, nameMap, hostDocument);
     }
 
-    private static OpenApiSchemaReference UpdateSchemaReference(OpenApiSchemaReference schemaRef, Dictionary<string, string> nameMap)
+    private static OpenApiSchemaReference UpdateSchemaReference(OpenApiSchemaReference schemaRef, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (schemaRef.Reference == null)
         {
@@ -170,11 +170,11 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         }
 
         return nameMap.TryGetValue(refId, out var newName)
-            ? new OpenApiSchemaReference(newName, null, null)
-            : new OpenApiSchemaReference(refId, null, null);
+            ? new OpenApiSchemaReference(newName, hostDocument, null)
+            : new OpenApiSchemaReference(refId, hostDocument, null);
     }
 
-    private static OpenApiSchema CreateUpdatedSchema(IOpenApiSchema schema, Dictionary<string, string> nameMap)
+    private static OpenApiSchema CreateUpdatedSchema(IOpenApiSchema schema, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         var updatedSchema = new OpenApiSchema
         {
@@ -203,49 +203,49 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             MinProperties = schema.MinProperties
         };
 
-        UpdateSchemaCollections(updatedSchema, schema, nameMap);
+        UpdateSchemaCollections(updatedSchema, schema, nameMap, hostDocument);
         return updatedSchema;
     }
 
-    private static void UpdateSchemaCollections(OpenApiSchema updatedSchema, IOpenApiSchema schema, Dictionary<string, string> nameMap)
+    private static void UpdateSchemaCollections(OpenApiSchema updatedSchema, IOpenApiSchema schema, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (schema.Items != null)
         {
-            updatedSchema.Items = UpdateSchemaReferences(schema.Items, nameMap);
+            updatedSchema.Items = UpdateSchemaReferences(schema.Items, nameMap, hostDocument);
         }
 
         if (schema.AllOf != null)
         {
-            updatedSchema.AllOf = UpdateSchemaList(schema.AllOf, nameMap);
+            updatedSchema.AllOf = UpdateSchemaList(schema.AllOf, nameMap, hostDocument);
         }
 
         if (schema.OneOf != null)
         {
-            updatedSchema.OneOf = UpdateSchemaList(schema.OneOf, nameMap);
+            updatedSchema.OneOf = UpdateSchemaList(schema.OneOf, nameMap, hostDocument);
         }
 
         if (schema.AnyOf != null)
         {
-            updatedSchema.AnyOf = UpdateSchemaList(schema.AnyOf, nameMap);
+            updatedSchema.AnyOf = UpdateSchemaList(schema.AnyOf, nameMap, hostDocument);
         }
 
         if (schema.Not != null)
         {
-            updatedSchema.Not = UpdateSchemaReferences(schema.Not, nameMap);
+            updatedSchema.Not = UpdateSchemaReferences(schema.Not, nameMap, hostDocument);
         }
 
         if (schema.AdditionalProperties != null)
         {
-            updatedSchema.AdditionalProperties = UpdateSchemaReferences(schema.AdditionalProperties, nameMap);
+            updatedSchema.AdditionalProperties = UpdateSchemaReferences(schema.AdditionalProperties, nameMap, hostDocument);
         }
 
         if (schema.Properties != null)
         {
-            updatedSchema.Properties = schema.Properties.ToDictionary(p => p.Key, p => UpdateSchemaReferences(p.Value, nameMap)!);
+            updatedSchema.Properties = schema.Properties.ToDictionary(p => p.Key, p => UpdateSchemaReferences(p.Value, nameMap, hostDocument)!);
         }
     }
 
-    private static OpenApiPathItem? UpdatePathItemReferences(IOpenApiPathItem? pathItem, Dictionary<string, string> nameMap)
+    private static OpenApiPathItem? UpdatePathItemReferences(IOpenApiPathItem? pathItem, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (pathItem == null)
         {
@@ -258,14 +258,14 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         {
             foreach (var (operationType, operation) in pathItem.Operations)
             {
-                updatedPathItem.AddOperation(operationType, UpdateOperationReferences(operation, nameMap)!);
+                updatedPathItem.AddOperation(operationType, UpdateOperationReferences(operation, nameMap, hostDocument)!);
             }
         }
 
         return updatedPathItem;
     }
 
-    private static OpenApiOperation? UpdateOperationReferences(OpenApiOperation? operation, Dictionary<string, string> nameMap)
+    private static OpenApiOperation? UpdateOperationReferences(OpenApiOperation? operation, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (operation == null)
         {
@@ -284,7 +284,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         // Update request body
         if (operation.RequestBody != null)
         {
-            updatedOperation.RequestBody = UpdateRequestBodyReferences(operation.RequestBody, nameMap);
+            updatedOperation.RequestBody = UpdateRequestBodyReferences(operation.RequestBody, nameMap, hostDocument);
         }
 
         // Update parameters
@@ -293,7 +293,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             updatedOperation.Parameters = [];
             foreach (var parameter in operation.Parameters)
             {
-                updatedOperation.Parameters.Add(UpdateParameterReferences(parameter, nameMap));
+                updatedOperation.Parameters.Add(UpdateParameterReferences(parameter, nameMap, hostDocument));
             }
         }
 
@@ -303,16 +303,16 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             updatedOperation.Responses = [];
             foreach (var (statusCode, response) in operation.Responses)
             {
-                updatedOperation.Responses[statusCode] = UpdateResponseReferences(response, nameMap)!;
+                updatedOperation.Responses[statusCode] = UpdateResponseReferences(response, nameMap, hostDocument)!;
             }
         }
 
         return updatedOperation;
     }
 
-    private static OpenApiRequestBody? UpdateRequestBodyReferences(IOpenApiRequestBody? requestBody, Dictionary<string, string> nameMap)
+    private static OpenApiRequestBody? UpdateRequestBodyReferences(IOpenApiRequestBody? requestBody, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
-        if (requestBody?.Content == null)
+        if (requestBody == null)
         {
             return null;
         }
@@ -320,22 +320,25 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
         var updatedRequestBody = new OpenApiRequestBody
         {
             Description = requestBody.Description,
-            Required = requestBody.Required,
-            Content = new Dictionary<string, IOpenApiMediaType>()
+            Required = requestBody.Required
         };
 
-        foreach (var (mediaType, mediaTypeObj) in requestBody.Content)
+        if (requestBody.Content != null)
         {
-            updatedRequestBody.Content[mediaType] = new OpenApiMediaType
+            updatedRequestBody.Content = new Dictionary<string, IOpenApiMediaType>();
+            foreach (var (mediaType, mediaTypeObj) in requestBody.Content)
             {
-                Schema = UpdateSchemaReferences(mediaTypeObj.Schema, nameMap)
-            };
+                updatedRequestBody.Content[mediaType] = new OpenApiMediaType
+                {
+                    Schema = UpdateSchemaReferences(mediaTypeObj.Schema, nameMap, hostDocument)
+                };
+            }
         }
 
         return updatedRequestBody;
     }
 
-    private static OpenApiParameter UpdateParameterReferences(IOpenApiParameter parameter, Dictionary<string, string> nameMap)
+    private static OpenApiParameter UpdateParameterReferences(IOpenApiParameter parameter, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         return new OpenApiParameter
         {
@@ -345,35 +348,38 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             Required = parameter.Required,
             Deprecated = parameter.Deprecated,
             AllowEmptyValue = parameter.AllowEmptyValue,
-            Schema = UpdateSchemaReferences(parameter.Schema, nameMap)
+            Schema = UpdateSchemaReferences(parameter.Schema, nameMap, hostDocument)
         };
     }
 
-    private static OpenApiResponse? UpdateResponseReferences(IOpenApiResponse? response, Dictionary<string, string> nameMap)
+    private static OpenApiResponse? UpdateResponseReferences(IOpenApiResponse? response, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
-        if (response?.Content == null)
+        if (response == null)
         {
             return null;
         }
 
         var updatedResponse = new OpenApiResponse
         {
-            Description = response.Description,
-            Content = new Dictionary<string, IOpenApiMediaType>()
+            Description = response.Description ?? String.Empty
         };
 
-        foreach (var (mediaType, mediaTypeObj) in response.Content)
+        if (response.Content != null)
         {
-            updatedResponse.Content[mediaType] = new OpenApiMediaType
+            updatedResponse.Content = new Dictionary<string, IOpenApiMediaType>();
+            foreach (var (mediaType, mediaTypeObj) in response.Content)
             {
-                Schema = UpdateSchemaReferences(mediaTypeObj.Schema, nameMap)
-            };
+                updatedResponse.Content[mediaType] = new OpenApiMediaType
+                {
+                    Schema = UpdateSchemaReferences(mediaTypeObj.Schema, nameMap, hostDocument)
+                };
+            }
         }
 
         return updatedResponse;
     }
 
-    private static void CopyComponentsWithUpdatedReferences(OpenApiComponents? source, OpenApiComponents target, Dictionary<string, string> nameMap)
+    private static void CopyComponentsWithUpdatedReferences(OpenApiComponents? source, OpenApiComponents target, Dictionary<string, string> nameMap, OpenApiDocument hostDocument)
     {
         if (source == null)
         {
@@ -392,7 +398,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             target.Responses = new Dictionary<string, IOpenApiResponse>();
             foreach (var (name, response) in source.Responses)
             {
-                target.Responses[name] = UpdateResponseReferences(response, nameMap)!;
+                target.Responses[name] = UpdateResponseReferences(response, nameMap, hostDocument)!;
             }
         }
 
@@ -402,7 +408,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             target.Parameters = new Dictionary<string, IOpenApiParameter>();
             foreach (var (name, parameter) in source.Parameters)
             {
-                target.Parameters[name] = UpdateParameterReferences(parameter, nameMap);
+                target.Parameters[name] = UpdateParameterReferences(parameter, nameMap, hostDocument);
             }
         }
 
@@ -412,7 +418,7 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             target.RequestBodies = new Dictionary<string, IOpenApiRequestBody>();
             foreach (var (name, requestBody) in source.RequestBodies)
             {
-                target.RequestBodies[name] = UpdateRequestBodyReferences(requestBody, nameMap)!;
+                target.RequestBodies[name] = UpdateRequestBodyReferences(requestBody, nameMap, hostDocument)!;
             }
         }
 

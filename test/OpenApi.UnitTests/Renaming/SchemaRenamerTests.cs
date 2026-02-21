@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Xunit;

@@ -3,6 +3,10 @@
   "info": {
     "title": "User Service API",
     "description": "API for managing users in the system",
+    "contact": {
+      "name": "Adaptive Architecture",
+      "url": "https://github.com/adaptive-architecture"
+    },
     "version": "v1"
   },
   "paths": {
@@ -12,6 +16,8 @@
           "Users"
         ],
         "summary": "Gets all users.",
+        "description": "Returns all registered users in the system.",
+        "operationId": "GetAll",
         "responses": {
           "200": {
             "description": "Returns the list of users.",
@@ -33,6 +39,8 @@
           "Users"
         ],
         "summary": "Creates a new user.",
+        "description": "Validates the request and creates a new user with a generated ID.",
+        "operationId": "Create",
         "requestBody": {
           "description": "The user creation request.",
           "content": {
@@ -83,6 +91,8 @@
           "Users"
         ],
         "summary": "Gets a specific user by ID.",
+        "description": "Looks up a user by their unique numeric identifier.",
+        "operationId": "GetById",
         "parameters": [
           {
             "name": "id",
@@ -123,6 +133,8 @@
           "Users"
         ],
         "summary": "Deletes a user.",
+        "description": "Permanently removes the user with the given ID.",
+        "operationId": "Delete",
         "parameters": [
           {
             "name": "id",

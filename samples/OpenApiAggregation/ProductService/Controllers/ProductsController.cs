@@ -22,6 +22,7 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Gets all products.
     /// </summary>
+    /// <remarks>Returns all products, optionally filtered by category.</remarks>
     /// <param name="category">Optional category filter.</param>
     /// <returns>A list of all products.</returns>
     /// <response code="200">Returns the list of products.</response>
@@ -39,6 +40,7 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Gets a specific product by ID.
     /// </summary>
+    /// <remarks>Looks up a product by its unique numeric identifier.</remarks>
     /// <param name="id">The product ID.</param>
     /// <returns>The requested product.</returns>
     /// <response code="200">Returns the product.</response>
@@ -59,6 +61,7 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Creates a new product.
     /// </summary>
+    /// <remarks>Validates the request and creates a new product with a generated ID.</remarks>
     /// <param name="request">The product creation request.</param>
     /// <returns>The created product.</returns>
     /// <response code="201">Product created successfully.</response>
@@ -86,6 +89,7 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Updates an existing product.
     /// </summary>
+    /// <remarks>Replaces all fields of the product with the given values.</remarks>
     /// <param name="id">The product ID to update.</param>
     /// <param name="request">The product update request.</param>
     /// <returns>The updated product.</returns>
@@ -116,6 +120,7 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Deletes a product.
     /// </summary>
+    /// <remarks>Permanently removes the product with the given ID.</remarks>
     /// <param name="id">The product ID to delete.</param>
     /// <returns>No content.</returns>
     /// <response code="204">Product deleted successfully.</response>

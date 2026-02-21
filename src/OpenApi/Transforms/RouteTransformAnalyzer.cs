@@ -1,4 +1,4 @@
-
+﻿
 using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Transforms;
@@ -107,10 +107,10 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
             }
         }
 
-        // If no transforms, backend path equals gateway path (direct mapping)
+        // If no transforms, validate backend path against route match pattern
         if (analysis.Transforms.Count == 0)
         {
-            return backendPath;
+            return MatchesRoutePattern(backendPath, analysis.MatchPattern) ? backendPath : null;
         }
 
         // After reversing transforms, currentPath should already be the gateway path
@@ -216,6 +216,49 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
 
         // PathRemovePrefix removes a prefix going forward, so reverse adds it back
         return prefix + downstreamPath;
+    }
+
+    private static bool MatchesRoutePattern(string backendPath, string routePattern)
+    {
+        if (String.IsNullOrEmpty(backendPath) || String.IsNullOrEmpty(routePattern))
+        {
+            return false;
+        }
+
+        var pathSegments = backendPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var patternSegments = routePattern.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        for (var i = 0; i < patternSegments.Length; i++)
+        {
+            var patternSeg = patternSegments[i];
+
+            // Catch-all: matches zero or more remaining segments
+            if (patternSeg.StartsWith("{**", StringComparison.Ordinal) && patternSeg.EndsWith('}'))
+            {
+                return true;
+            }
+
+            // No more path segments but pattern still has non-catch-all segments
+            if (i >= pathSegments.Length)
+            {
+                return false;
+            }
+
+            // Parameter segment: matches any single segment
+            if (patternSeg.StartsWith('{') && patternSeg.EndsWith('}'))
+            {
+                continue;
+            }
+
+            // Literal segment: must match exactly (case-insensitive)
+            if (!String.Equals(patternSeg, pathSegments[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        // All pattern segments consumed; path must also be fully consumed
+        return pathSegments.Length == patternSegments.Length;
     }
 
     private static string? ReversePathSet(string downstreamPath, TransformInfo transformInfo)
