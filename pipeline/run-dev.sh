@@ -8,14 +8,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 cleanup() {
   echo ""
-  sh "$REPO_ROOT/pipeline/stop-all.sh"
+  bash "$REPO_ROOT/pipeline/stop-all.sh"
   wait 2>/dev/null || true
 }
 
 trap cleanup EXIT
 
 # Kill any stale services from a previous run
-sh "$REPO_ROOT/pipeline/stop-all.sh"
+bash "$REPO_ROOT/pipeline/stop-all.sh"
 
 USER_SERVICE="$REPO_ROOT/samples/OpenApiAggregation/UserService/UserService.csproj"
 PRODUCT_SERVICE="$REPO_ROOT/samples/OpenApiAggregation/ProductService/ProductService.csproj"
