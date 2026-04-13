@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 </Project>
