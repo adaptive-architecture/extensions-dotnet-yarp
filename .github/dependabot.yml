@@ -3,7 +3,8 @@ updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 0 13 * *"
     groups:
       all:
         patterns:
@@ -11,7 +12,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "cron"
+      cronjob: "0 0 6 * *"
     groups:
       all:
         patterns:
