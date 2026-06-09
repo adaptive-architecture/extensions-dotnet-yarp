@@ -903,6 +903,71 @@ public class YarpOpenApiConfigurationReaderTests
         Assert.True(result.Enabled);
     }
 
+    // Round-trip guard: verifies every property on AdaOpenApiRouteConfig survives the
+    // native-JSON-object path (IConfiguration → BuildJsonNode → JSON → deserialize).
+    // The property count assertion is a tripwire — it fails when a new property is added,
+    // forcing an update here and a verification that BuildJsonNode handles the new type.
+    [Fact]
+    public void GetRouteOpenApiConfig_NativeJsonFormat_RoundTripsAllProperties()
+    {
+        const int expectedPropertyCount = 2; // Update when adding properties to AdaOpenApiRouteConfig
+        Assert.Equal(expectedPropertyCount,
+            typeof(AdaOpenApiRouteConfig).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Length);
+
+        var original = new AdaOpenApiRouteConfig { ServiceName = "Round-Trip Service", Enabled = false };
+
+        var route = new RouteConfig
+        {
+            RouteId = "rt-route",
+            ClusterId = "cluster",
+            Match = new RouteMatch { Path = "/rt" },
+            Metadata = new Dictionary<string, string> { { "Ada.OpenApi", null } }
+        };
+
+        _proxyConfigProvider.GetConfig().Returns(new TestProxyConfig { Routes = [route] });
+
+        var configuration = BuildConfiguration(new Dictionary<string, string>
+        {
+            { "ReverseProxy:Routes:rt-route:Metadata:Ada.OpenApi:serviceName", original.ServiceName },
+            { "ReverseProxy:Routes:rt-route:Metadata:Ada.OpenApi:enabled", original.Enabled.ToString() }
+        });
+
+        var result = CreateReader(configuration).GetRouteOpenApiConfig("rt-route");
+
+        Assert.NotNull(result);
+        Assert.Equivalent(original, result);
+    }
+
+    // Round-trip guard for AdaOpenApiClusterConfig — same rationale as above.
+    [Fact]
+    public void GetClusterOpenApiConfig_NativeJsonFormat_RoundTripsAllProperties()
+    {
+        const int expectedPropertyCount = 2; // Update when adding properties to AdaOpenApiClusterConfig
+        Assert.Equal(expectedPropertyCount,
+            typeof(AdaOpenApiClusterConfig).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Length);
+
+        var original = new AdaOpenApiClusterConfig { OpenApiPath = "/custom/openapi.json", Prefix = "RoundTrip" };
+
+        var cluster = new ClusterConfig
+        {
+            ClusterId = "rt-cluster",
+            Metadata = new Dictionary<string, string> { { "Ada.OpenApi", null } }
+        };
+
+        _proxyConfigProvider.GetConfig().Returns(new TestProxyConfig { Clusters = [cluster] });
+
+        var configuration = BuildConfiguration(new Dictionary<string, string>
+        {
+            { "ReverseProxy:Clusters:rt-cluster:Metadata:Ada.OpenApi:openApiPath", original.OpenApiPath },
+            { "ReverseProxy:Clusters:rt-cluster:Metadata:Ada.OpenApi:prefix", original.Prefix }
+        });
+
+        var result = CreateReader(configuration).GetClusterOpenApiConfig("rt-cluster");
+
+        Assert.NotNull(result);
+        Assert.Equivalent(original, result);
+    }
+
     private class TestProxyConfig : IProxyConfig
     {
         public IReadOnlyList<RouteConfig> Routes { get; set; } = [];

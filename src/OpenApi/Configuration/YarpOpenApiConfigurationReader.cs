@@ -1,9 +1,10 @@
-
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Yarp.ReverseProxy.Configuration;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using AdaptArch.Extensions.Yarp.OpenApi.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 /// <summary>
@@ -59,50 +60,52 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
 
     private readonly IProxyConfigProvider _proxyConfigProvider;
     private readonly ILogger _logger;
-
-
+    private readonly IConfiguration _configuration;
+    private readonly string _sectionName;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YarpOpenApiConfigurationReader"/> class.
     /// </summary>
     public YarpOpenApiConfigurationReader(
         IProxyConfigProvider proxyConfigProvider,
-        ILogger<YarpOpenApiConfigurationReader> logger)
+        ILogger<YarpOpenApiConfigurationReader> logger,
+        IConfiguration configuration,
+        IOptions<OpenApiAggregationOptions> options)
     {
         _proxyConfigProvider = proxyConfigProvider;
         _logger = logger;
+        _configuration = configuration;
+        _sectionName = options.Value.ReverseProxyConfigSectionName;
     }
 
     /// <inheritdoc/>
     public AdaOpenApiClusterConfig? GetClusterOpenApiConfig(string clusterId)
     {
         var cluster = GetAllClusters().FirstOrDefault(c => c.ClusterId == clusterId);
-        if (cluster?.Metadata == null)
+        if (cluster == null)
         {
             return null;
         }
 
-        return ParseMetadata(
-            cluster.Metadata,
-            AdaOpenApiMetadataKey,
-            $"cluster '{clusterId}'",
-            OpenApiJsonContext.Default.AdaOpenApiClusterConfig);
+        return GetAdaConfig(cluster.Metadata,
+            $"{_sectionName}:Clusters:{clusterId}:Metadata:{AdaOpenApiMetadataKey}",
+            $"cluster '{clusterId}'", OpenApiJsonContext.Default.AdaOpenApiClusterConfig,
+            s => s.Get<AdaOpenApiClusterConfig>());
     }
 
     /// <inheritdoc/>
     public AdaOpenApiRouteConfig? GetRouteOpenApiConfig(string routeId)
     {
         var route = GetAllRoutes().FirstOrDefault(r => r.RouteId == routeId);
-        if (route?.Metadata == null)
+        if (route == null)
         {
             return null;
         }
 
-        return ParseMetadata(
-            route.Metadata,
-            AdaOpenApiMetadataKey,
-            $"route '{routeId}'",
-            OpenApiJsonContext.Default.AdaOpenApiRouteConfig);
+        return GetAdaConfig(route.Metadata,
+            $"{_sectionName}:Routes:{routeId}:Metadata:{AdaOpenApiMetadataKey}",
+            $"route '{routeId}'", OpenApiJsonContext.Default.AdaOpenApiRouteConfig,
+            s => s.Get<AdaOpenApiRouteConfig>());
     }
 
     /// <inheritdoc/>
@@ -124,16 +127,12 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     {
         foreach (var route in GetAllRoutes())
         {
-            if (route.Metadata == null)
-            {
-                continue;
-            }
-
-            var adaConfig = ParseMetadata(
+            var adaConfig = GetAdaConfig(
                 route.Metadata,
-                AdaOpenApiMetadataKey,
+                $"{_sectionName}:Routes:{route.RouteId}:Metadata:{AdaOpenApiMetadataKey}",
                 $"route '{route.RouteId}'",
-                OpenApiJsonContext.Default.AdaOpenApiRouteConfig);
+                OpenApiJsonContext.Default.AdaOpenApiRouteConfig,
+                s => s.Get<AdaOpenApiRouteConfig>());
 
             if (adaConfig != null)
             {
@@ -147,16 +146,12 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     {
         foreach (var cluster in GetAllClusters())
         {
-            if (cluster.Metadata == null)
-            {
-                continue;
-            }
-
-            var adaConfig = ParseMetadata(
+            var adaConfig = GetAdaConfig(
                 cluster.Metadata,
-                AdaOpenApiMetadataKey,
+                $"{_sectionName}:Clusters:{cluster.ClusterId}:Metadata:{AdaOpenApiMetadataKey}",
                 $"cluster '{cluster.ClusterId}'",
-                OpenApiJsonContext.Default.AdaOpenApiClusterConfig);
+                OpenApiJsonContext.Default.AdaOpenApiClusterConfig,
+                s => s.Get<AdaOpenApiClusterConfig>());
 
             if (adaConfig != null)
             {
@@ -165,24 +160,35 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
         }
     }
 
-    private T? ParseMetadata<T>(
-        IReadOnlyDictionary<string, string> metadata,
-        string key,
+    private T? GetAdaConfig<T>(
+        IReadOnlyDictionary<string, string>? metadata,
+        string configSectionPath,
+        string contextDescription,
+        JsonTypeInfo<T> jsonTypeInfo,
+        Func<IConfigurationSection, T?> fromSection) where T : class
+    {
+        // Old format: string value already in the metadata dict
+        if (metadata?.TryGetValue(AdaOpenApiMetadataKey, out var metadataJson) == true && metadataJson is not null)
+        {
+            return ParseMetadataFromJson(metadataJson, contextDescription, jsonTypeInfo);
+        }
+
+        // New format: native JSON object — bind directly from IConfiguration section
+        return fromSection(_configuration.GetSection(configSectionPath));
+    }
+
+    private T? ParseMetadataFromJson<T>(
+        string metadataJson,
         string contextDescription,
         JsonTypeInfo<T> jsonTypeInfo) where T : class
     {
-        if (!metadata.TryGetValue(key, out var metadataJson))
-        {
-            return null;
-        }
-
         try
         {
             return JsonSerializer.Deserialize(metadataJson, jsonTypeInfo);
         }
         catch (JsonException ex)
         {
-            LogMetadataDeserializationFailed(key, contextDescription, metadataJson, ex);
+            LogMetadataDeserializationFailed(AdaOpenApiMetadataKey, contextDescription, metadataJson, ex);
             return null;
         }
     }
@@ -191,4 +197,3 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to deserialize {MetadataKey} metadata for {Context}. JSON: {Json}")]
     private partial void LogMetadataDeserializationFailed(string metadataKey, string context, string json, Exception ex);
 }
-
