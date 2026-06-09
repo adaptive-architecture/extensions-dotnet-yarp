@@ -9,6 +9,17 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 public class OpenApiAggregationOptions
 {
     /// <summary>
+    /// Gets or sets the name of the YARP configuration section.
+    /// </summary>
+    /// <remarks>
+    /// Used by <see cref="OpenApiMetadataNormalizationFilter"/> to locate metadata values
+    /// that were written as native JSON objects in configuration rather than as escaped JSON strings.
+    /// Must match the section name passed to <c>LoadFromConfig</c> when setting up YARP.
+    /// Defaults to "ReverseProxy".
+    /// </remarks>
+    public string ReverseProxyConfigSectionName { get; set; } = "ReverseProxy";
+
+    /// <summary>
     /// Gets or sets the default path to fetch OpenAPI documents from downstream services.
     /// </summary>
     /// <remarks>

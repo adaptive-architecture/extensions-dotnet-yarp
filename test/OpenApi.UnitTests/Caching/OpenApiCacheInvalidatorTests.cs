@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Caching;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

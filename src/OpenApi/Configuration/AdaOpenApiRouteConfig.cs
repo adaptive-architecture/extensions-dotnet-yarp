@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
+﻿namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 /// <summary>
 /// OpenAPI configuration for a YARP route, stored as JSON in route metadata under "Ada.OpenApi" key.

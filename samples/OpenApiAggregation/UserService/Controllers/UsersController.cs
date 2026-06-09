@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.Samples.UserService.Models;
+﻿using AdaptArch.Extensions.Yarp.Samples.UserService.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AdaptArch.Extensions.Yarp.Samples.UserService.Controllers;

@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi;
+﻿namespace AdaptArch.Extensions.Yarp.OpenApi;
 
 /// <summary>
 /// Provides OpenAPI extensions for YARP reverse proxy.

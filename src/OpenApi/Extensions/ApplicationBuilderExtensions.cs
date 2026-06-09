@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Middleware;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Middleware;
 using Microsoft.AspNetCore.Builder;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Extensions;

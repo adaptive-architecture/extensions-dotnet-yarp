@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.OpenApi;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Caching;

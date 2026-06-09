@@ -1,7 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using NSubstitute;
 using Xunit;
@@ -21,6 +23,16 @@ public class YarpOpenApiConfigurationReaderTests
         _proxyConfigProvider = Substitute.For<IProxyConfigProvider>();
         _logger = NullLogger<YarpOpenApiConfigurationReader>.Instance;
     }
+
+    private YarpOpenApiConfigurationReader CreateReader(IConfiguration configuration = null)
+    {
+        var config = configuration ?? new ConfigurationBuilder().Build();
+        var options = Options.Create(new OpenApiAggregationOptions());
+        return new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger, config, options);
+    }
+
+    private static IConfiguration BuildConfiguration(Dictionary<string, string> data) =>
+        new ConfigurationBuilder().AddInMemoryCollection(data).Build();
 
     [Fact]
     public void GetClusterOpenApiConfig_WithValidMetadata_ReturnsConfig()
@@ -49,7 +61,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("user-service");
@@ -77,7 +89,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("user-service");
@@ -106,7 +118,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("user-service");
@@ -144,7 +156,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("user-route");
@@ -174,7 +186,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("user-route");
@@ -205,7 +217,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("user-route");
@@ -225,7 +237,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("non-existent");
@@ -245,7 +257,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("non-existent");
@@ -271,7 +283,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("user-service");
@@ -299,7 +311,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("user-route");
@@ -319,7 +331,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusters();
@@ -343,7 +355,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusters().ToList();
@@ -366,7 +378,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRoutes();
@@ -399,7 +411,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRoutes().ToList();
@@ -421,7 +433,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRouteOpenApiConfigs();
@@ -456,7 +468,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRouteOpenApiConfigs();
@@ -500,7 +512,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRouteOpenApiConfigs().ToList();
@@ -558,7 +570,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllRouteOpenApiConfigs().ToList();
@@ -580,7 +592,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusterOpenApiConfigs();
@@ -611,7 +623,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusterOpenApiConfigs();
@@ -651,7 +663,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusterOpenApiConfigs().ToList();
@@ -703,7 +715,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetAllClusterOpenApiConfigs().ToList();
@@ -742,7 +754,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetClusterOpenApiConfig("user-service");
@@ -782,7 +794,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         _proxyConfigProvider.GetConfig().Returns(proxyConfig);
 
-        var reader = new YarpOpenApiConfigurationReader(_proxyConfigProvider, _logger);
+        var reader = CreateReader();
 
         // Act
         var result = reader.GetRouteOpenApiConfig("user-route");
@@ -790,6 +802,104 @@ public class YarpOpenApiConfigurationReaderTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("User Management", result.ServiceName);
+        Assert.True(result.Enabled);
+    }
+
+    [Fact]
+    public void GetRouteOpenApiConfig_WithNativeJsonObjectInConfig_ReturnsConfig()
+    {
+        // Arrange — route has null Ada.OpenApi (YARP binds nested JSON object as null)
+        var route = new RouteConfig
+        {
+            RouteId = "user-route",
+            ClusterId = "user-service",
+            Match = new RouteMatch { Path = "/api/users" },
+            Metadata = new Dictionary<string, string> { { "Ada.OpenApi", null } }
+        };
+
+        var proxyConfig = new TestProxyConfig { Routes = [route] };
+        _proxyConfigProvider.GetConfig().Returns(proxyConfig);
+
+        var configuration = BuildConfiguration(new Dictionary<string, string>
+        {
+            { "ReverseProxy:Routes:user-route:Metadata:Ada.OpenApi:serviceName", "User Management" },
+            { "ReverseProxy:Routes:user-route:Metadata:Ada.OpenApi:enabled", "true" }
+        });
+
+        var reader = CreateReader(configuration);
+
+        // Act
+        var result = reader.GetRouteOpenApiConfig("user-route");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("User Management", result.ServiceName);
+        Assert.True(result.Enabled);
+    }
+
+    [Fact]
+    public void GetClusterOpenApiConfig_WithNativeJsonObjectInConfig_ReturnsConfig()
+    {
+        // Arrange — cluster has null Ada.OpenApi (YARP binds nested JSON object as null)
+        var cluster = new ClusterConfig
+        {
+            ClusterId = "user-service",
+            Metadata = new Dictionary<string, string> { { "Ada.OpenApi", null } }
+        };
+
+        var proxyConfig = new TestProxyConfig { Clusters = [cluster] };
+        _proxyConfigProvider.GetConfig().Returns(proxyConfig);
+
+        var configuration = BuildConfiguration(new Dictionary<string, string>
+        {
+            { "ReverseProxy:Clusters:user-service:Metadata:Ada.OpenApi:openApiPath", "/api/openapi.json" },
+            { "ReverseProxy:Clusters:user-service:Metadata:Ada.OpenApi:prefix", "UserService" }
+        });
+
+        var reader = CreateReader(configuration);
+
+        // Act
+        var result = reader.GetClusterOpenApiConfig("user-service");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("/api/openapi.json", result.OpenApiPath);
+        Assert.Equal("UserService", result.Prefix);
+    }
+
+    [Fact]
+    public void GetRouteOpenApiConfig_OldFormatStringTakesPrecedenceOverConfig()
+    {
+        // Arrange — both old-string metadata and IConfiguration section present; string wins
+        var routeConfig = new AdaOpenApiRouteConfig { ServiceName = "From String", Enabled = true };
+        var route = new RouteConfig
+        {
+            RouteId = "user-route",
+            ClusterId = "user-service",
+            Match = new RouteMatch { Path = "/api/users" },
+            Metadata = new Dictionary<string, string>
+            {
+                { "Ada.OpenApi", JsonSerializer.Serialize(routeConfig, SerializeOptions) }
+            }
+        };
+
+        var proxyConfig = new TestProxyConfig { Routes = [route] };
+        _proxyConfigProvider.GetConfig().Returns(proxyConfig);
+
+        var configuration = BuildConfiguration(new Dictionary<string, string>
+        {
+            { "ReverseProxy:Routes:user-route:Metadata:Ada.OpenApi:serviceName", "From Config" },
+            { "ReverseProxy:Routes:user-route:Metadata:Ada.OpenApi:enabled", "false" }
+        });
+
+        var reader = CreateReader(configuration);
+
+        // Act
+        var result = reader.GetRouteOpenApiConfig("user-route");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("From String", result.ServiceName);
         Assert.True(result.Enabled);
     }
 

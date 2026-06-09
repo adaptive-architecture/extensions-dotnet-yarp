@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Caching;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 using Swashbuckle.AspNetCore.SwaggerUI;
 

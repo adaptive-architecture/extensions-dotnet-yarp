@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using AdaptArch.Extensions.Yarp.OpenApi.Fetching;
@@ -9,6 +9,7 @@ using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 
@@ -53,6 +54,9 @@ public static class ServiceCollectionExtensions
         {
             services.Configure(configure);
         }
+
+        // Register metadata normalization filter (supports native JSON object format in config)
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IProxyConfigFilter, OpenApiMetadataNormalizationFilter>());
 
         // Register configuration and analysis services
         services.TryAddSingleton<IYarpOpenApiConfigurationReader, YarpOpenApiConfigurationReader>();

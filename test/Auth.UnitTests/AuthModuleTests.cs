@@ -1,4 +1,4 @@
-
+﻿
 using Xunit;
 
 namespace AdaptArch.Extensions.Yarp.Auth.UnitTests;

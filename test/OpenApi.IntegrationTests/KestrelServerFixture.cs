@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

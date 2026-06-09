@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.Auth;
+﻿using AdaptArch.Extensions.Yarp.Auth;
 using AdaptArch.Extensions.Yarp.OpenApi;
 
 Console.WriteLine("Application started!");

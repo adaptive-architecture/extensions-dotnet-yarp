@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
 using Yarp.ReverseProxy.Configuration;
 using Xunit;
 

@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Analysis;

@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Caching;
+﻿namespace AdaptArch.Extensions.Yarp.OpenApi.Caching;
 
 /// <summary>
 /// Service for invalidating OpenAPI cache entries by service name, cluster, or globally.

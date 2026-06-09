@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Renaming;

@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.Samples.ProductService.Models;
+﻿using AdaptArch.Extensions.Yarp.Samples.ProductService.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AdaptArch.Extensions.Yarp.Samples.ProductService.Controllers;

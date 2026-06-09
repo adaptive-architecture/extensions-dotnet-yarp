@@ -1,4 +1,4 @@
-using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
+﻿using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 using AdaptArch.Extensions.Yarp.OpenApi.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

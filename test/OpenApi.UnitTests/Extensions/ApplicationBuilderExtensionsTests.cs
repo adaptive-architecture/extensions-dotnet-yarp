@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 
 using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 using Microsoft.AspNetCore.Builder;

@@ -1,4 +1,4 @@
-using Yarp.ReverseProxy.Configuration;
+﻿using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 

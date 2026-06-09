@@ -1,4 +1,4 @@
-namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
+﻿namespace AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 /// <summary>
 /// OpenAPI configuration for a YARP cluster, stored as JSON in cluster metadata under "Ada.OpenApi" key.

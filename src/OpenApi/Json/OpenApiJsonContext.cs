@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
