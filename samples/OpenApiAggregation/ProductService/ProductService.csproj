@@ -10,7 +10,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.OpenApi" />
+    <!--
+      Swashbuckle is built against Microsoft.OpenApi 2.x and breaks at runtime on 3.x, so this
+      sample overrides the central 3.x version (used by AdaptArch.Extensions.Yarp.OpenApi)
+      with the latest 2.x. Keep this on 2.x: .github/dependabot.yml ignores major updates of
+      Microsoft.OpenApi so this is only ever bumped by hand.
+      An upper bound such as [2.11.0,3.0.0) cannot be used here because OpenApi.IntegrationTests
+      references both this sample and the 3.x library, which trips NU1608.
+    -->
+    <PackageReference Include="Microsoft.OpenApi" VersionOverride="2.11.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 </Project>
