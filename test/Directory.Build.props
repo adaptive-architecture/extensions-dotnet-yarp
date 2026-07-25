@@ -4,6 +4,9 @@
     <OutputType>Exe</OutputType>
     <Nullable>disable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Test assemblies have no IHost entry point, so the ApiDescription.Server MSBuild target
+         cannot generate documents from them. Keep it off even if the package gets pulled in. -->
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
   </PropertyGroup>
 
 

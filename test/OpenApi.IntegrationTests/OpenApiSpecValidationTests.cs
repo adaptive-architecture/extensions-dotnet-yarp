@@ -141,7 +141,7 @@ public class OpenApiSpecValidationTests
         var (document, _) = await FetchAndParseAsync(_fixture.GatewayClient, "/api-docs/user-management");
         Assert.NotNull(document);
 
-        var paths = document.Paths.Keys.OrderBy(p => p).ToList();
+        var paths = document.Paths.Keys.Order().ToList();
         Assert.Equal(2, paths.Count);
         Assert.Contains("/api/Users", paths);
         Assert.Contains("/api/Users/{id}", paths);
@@ -153,7 +153,7 @@ public class OpenApiSpecValidationTests
         var (document, _) = await FetchAndParseAsync(_fixture.GatewayClient, "/api-docs/product-catalog");
         Assert.NotNull(document);
 
-        var paths = document.Paths.Keys.OrderBy(p => p).ToList();
+        var paths = document.Paths.Keys.Order().ToList();
         Assert.Equal(2, paths.Count);
         Assert.Contains("/api/Products", paths);
         Assert.Contains("/api/Products/{id}", paths);
@@ -237,7 +237,7 @@ public class OpenApiSpecValidationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         var (document, diagnostic) = await OpenApiDocument.LoadAsync(stream, cancellationToken: TestContext.Current.CancellationToken);
         return (document, diagnostic);
     }

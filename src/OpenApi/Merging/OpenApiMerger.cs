@@ -183,7 +183,7 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
         foreach (var tag in documents
             .Where(d => d.Tags != null)
             .SelectMany(d => d.Tags!)
-            .Where(t => !String.IsNullOrWhiteSpace(t.Name) && !tags.ContainsKey(t.Name!)))
+            .Where(t => !String.IsNullOrWhiteSpace(t.Name) && !tags.ContainsKey(t.Name)))
         {
             tags[tag.Name!] = tag;
         }

@@ -121,13 +121,15 @@ public sealed partial class OpenApiAggregationMiddleware
 
             var json = JsonSerializer.Serialize(response, OpenApiJsonContext.Default.ServiceListResponse);
 
-            await context.Response.WriteAsync(json);
+            await context.Response.WriteAsync(json, context.RequestAborted);
         }
         catch (Exception ex)
         {
             LogServiceListRequestError(ex);
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsync($"Internal server error: {ex.Message}");
+            // Reporting the failure must not itself be cancelled: the token may already be
+            // the cause of the exception we are reporting.
+            await context.Response.WriteAsync($"Internal server error: {ex.Message}", CancellationToken.None);
         }
     }
 
@@ -155,7 +157,7 @@ public sealed partial class OpenApiAggregationMiddleware
             if (serviceName.Contains("..") || serviceName.Contains('/') || serviceName.Contains('\\'))
             {
                 context.Response.StatusCode = 400;
-                await context.Response.WriteAsync("Invalid service name");
+                await context.Response.WriteAsync("Invalid service name", context.RequestAborted);
                 return;
             }
 
@@ -193,7 +195,7 @@ public sealed partial class OpenApiAggregationMiddleware
             {
                 LogServiceNotFound(serviceName);
                 context.Response.StatusCode = 404;
-                await context.Response.WriteAsync($"Service '{serviceName}' not found or failed to aggregate");
+                await context.Response.WriteAsync($"Service '{serviceName}' not found or failed to aggregate", context.RequestAborted);
                 return;
             }
 
@@ -211,7 +213,9 @@ public sealed partial class OpenApiAggregationMiddleware
         {
             LogSpecRequestError(serviceName, ex);
             context.Response.StatusCode = 500;
-            await context.Response.WriteAsync($"Internal server error: {ex.Message}");
+            // Reporting the failure must not itself be cancelled: the token may already be
+            // the cause of the exception we are reporting.
+            await context.Response.WriteAsync($"Internal server error: {ex.Message}", CancellationToken.None);
         }
     }
 
@@ -446,11 +450,11 @@ public sealed partial class OpenApiAggregationMiddleware
             : new OpenApiJsonWriter(streamWriter);
 
         document.SerializeAsV3(writer);
-        await streamWriter.FlushAsync();
+        await streamWriter.FlushAsync(context.RequestAborted);
 
         memoryStream.Position = 0;
-        await memoryStream.CopyToAsync(context.Response.Body);
-        await context.Response.Body.FlushAsync();
+        await memoryStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+        await context.Response.Body.FlushAsync(context.RequestAborted);
     }
 
     /// <summary>
