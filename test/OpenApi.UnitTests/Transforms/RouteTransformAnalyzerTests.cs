@@ -738,4 +738,29 @@ public class RouteTransformAnalyzerTests
         // Assert
         Assert.False(result);
     }
+
+    [Fact]
+    public void AnalyzeRoute_SameRouteInstance_ReturnsCachedAnalysis()
+    {
+        // Arrange: repeated analysis of the same route configuration instance must not
+        // redo the transform analysis (it is called on every request hot path).
+        var route = new RouteConfig
+        {
+            RouteId = "test-route",
+            Match = new RouteMatch { Path = "/api/users/{**catch-all}" },
+            Transforms =
+            [
+                new Dictionary<string, string> { ["PathPrefix"] = "/api" }
+            ]
+        };
+
+        var analyzer = new RouteTransformAnalyzer();
+
+        // Act
+        var first = analyzer.AnalyzeRoute(route);
+        var second = analyzer.AnalyzeRoute(route);
+
+        // Assert
+        Assert.Same(first, second);
+    }
 }

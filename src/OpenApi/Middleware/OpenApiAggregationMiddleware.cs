@@ -521,6 +521,7 @@ public sealed partial class OpenApiAggregationMiddleware
         await streamWriter.FlushAsync(context.RequestAborted);
 
         memoryStream.Position = 0;
+        context.Response.ContentLength = memoryStream.Length;
         await memoryStream.CopyToAsync(context.Response.Body, context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
     }
@@ -541,6 +542,10 @@ public sealed partial class OpenApiAggregationMiddleware
         return acceptHeader.Contains("yaml", StringComparison.OrdinalIgnoreCase);
     }
 
+    // Only ever keyed by configured service names, so the cache is bounded by the
+    // YARP configuration size.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> KebabCaseCache = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Converts a string to kebab-case (lowercase with hyphens).
     /// Example: "User Management" -> "user-management"
@@ -553,10 +558,10 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         // Replace spaces and underscores with hyphens, then lowercase
-        return value.Trim()
+        return KebabCaseCache.GetOrAdd(value, static v => v.Trim()
             .Replace(" ", "-")
             .Replace("_", "-")
-            .ToLowerInvariant();
+            .ToLowerInvariant());
     }
 
     /// <summary>

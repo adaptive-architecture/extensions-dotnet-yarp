@@ -34,8 +34,10 @@ public static class ServiceCollectionExtensions
         var aggregationOptions = new OpenApiAggregationOptions();
         configure?.Invoke(aggregationOptions);
 
-        // Register HybridCache with configuration from OpenApiAggregationOptions
-        services.AddHybridCache(options =>
+        // Register HybridCache with configuration from OpenApiAggregationOptions.
+        // The cache wrapper uses the source-generated serializer so caching stays
+        // reflection-free (AOT compatible).
+        _ = services.AddHybridCache(options =>
         {
             options.MaximumPayloadBytes = aggregationOptions.MaximumCachePayloadBytes;
             options.MaximumKeyLength = 1024;
@@ -44,7 +46,7 @@ public static class ServiceCollectionExtensions
                 Expiration = aggregationOptions.CacheDuration,
                 LocalCacheExpiration = aggregationOptions.CacheDuration
             };
-        });
+        }).AddSerializer<OpenApiDocumentCacheWrapper, OpenApiDocumentCacheWrapperSerializer>();
 
         // Register HTTP client factory if not already registered
         services.AddHttpClient();

@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using AdaptArch.Extensions.Yarp.OpenApi.Caching;
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
@@ -10,6 +11,7 @@ namespace AdaptArch.Extensions.Yarp.OpenApi.Json;
 [JsonSerializable(typeof(List<ServiceInfo>))]
 [JsonSerializable(typeof(AdaOpenApiClusterConfig))]
 [JsonSerializable(typeof(AdaOpenApiRouteConfig))]
+[JsonSerializable(typeof(OpenApiDocumentCacheWrapper))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<string>))]

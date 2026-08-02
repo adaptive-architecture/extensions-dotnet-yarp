@@ -73,6 +73,43 @@ public class YarpOpenApiConfigurationReaderTests
     }
 
     [Fact]
+    public void GetRouteOpenApiConfig_AfterConfigChange_ReturnsNewMetadata()
+    {
+        // Arrange: per-snapshot caching must be invalidated when YARP publishes a new config.
+        static TestProxyConfig BuildProxyConfig(string serviceName) => new()
+        {
+            Routes =
+            [
+                new RouteConfig
+                {
+                    RouteId = "route-1",
+                    ClusterId = "cluster-1",
+                    Match = new RouteMatch { Path = "/api/{**catch-all}" },
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "Ada.OpenApi", $"{{\"serviceName\":\"{serviceName}\"}}" }
+                    }
+                }
+            ]
+        };
+
+        _proxyConfigProvider.GetConfig().Returns(BuildProxyConfig("First Service"));
+        var reader = CreateReader();
+
+        // Act & Assert: initial snapshot
+        var first = reader.GetRouteOpenApiConfig("route-1");
+        Assert.NotNull(first);
+        Assert.Equal("First Service", first.ServiceName);
+
+        // Simulate a YARP configuration reload (new IProxyConfig instance)
+        _proxyConfigProvider.GetConfig().Returns(BuildProxyConfig("Second Service"));
+
+        var second = reader.GetRouteOpenApiConfig("route-1");
+        Assert.NotNull(second);
+        Assert.Equal("Second Service", second.ServiceName);
+    }
+
+    [Fact]
     public void GetClusterOpenApiConfig_WithNoMetadata_ReturnsNull()
     {
         // Arrange

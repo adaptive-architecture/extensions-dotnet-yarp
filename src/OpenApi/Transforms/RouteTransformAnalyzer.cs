@@ -39,8 +39,18 @@ public sealed class RouteTransformAnalyzer : IRouteTransformAnalyzer
     private const string CatchAllWithSlash = "/{**catch-all}";
     private const string CatchAll = "{**catch-all}";
 
+    // RouteConfig instances are immutable records that live as long as a YARP config
+    // snapshot; memoizing per instance avoids re-analyzing transforms on every request
+    // without holding on to routes from stale configurations.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<RouteConfig, RouteTransformAnalysis> _analysisCache = new();
+
     /// <inheritdoc/>
     public RouteTransformAnalysis AnalyzeRoute(RouteConfig route)
+    {
+        return _analysisCache.GetValue(route, static r => AnalyzeRouteCore(r));
+    }
+
+    private static RouteTransformAnalysis AnalyzeRouteCore(RouteConfig route)
     {
         var analysis = new RouteTransformAnalysis
         {

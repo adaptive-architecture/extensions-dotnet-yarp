@@ -37,15 +37,21 @@ internal sealed class OpenApiDocumentCacheWrapper
     /// <summary>
     /// Converts the cache wrapper back to an OpenApiDocument.
     /// </summary>
-    public async Task<OpenApiDocument?> ToDocumentAsync(CancellationToken cancellationToken = default)
+    public Task<OpenApiDocument?> ToDocumentAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (String.IsNullOrEmpty(Json))
         {
-            return null;
+            return Task.FromResult<OpenApiDocument?>(null);
         }
 
-        await using var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(Json));
-        var (document, _) = await OpenApiDocument.LoadAsync(memoryStream, cancellationToken: cancellationToken);
-        return document;
+        var (document, diagnostic) = OpenApiDocument.Parse(Json, format: "json");
+        if (document == null)
+        {
+            throw new InvalidOperationException($"Cached OpenAPI document could not be parsed: {diagnostic?.Errors?.FirstOrDefault()?.Message ?? "unknown error"}");
+        }
+
+        return Task.FromResult<OpenApiDocument?>(document);
     }
 }
