@@ -758,4 +758,35 @@ public class OpenApiMergerTests
         // Assert
         Assert.Null(result.Info.Contact);
     }
+
+    [Fact]
+    public void MergeDocuments_SingleDocument_DoesNotAliasSourceCollections()
+    {
+        // Arrange: the merged document must own its Paths/Components so mutating it
+        // cannot corrupt the source document (and vice versa).
+        var source = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "API 1", Version = "1.0" },
+            Paths = new OpenApiPaths
+            {
+                ["/users"] = new OpenApiPathItem()
+            },
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["User"] = new OpenApiSchema { Type = JsonSchemaType.Object }
+                }
+            }
+        };
+
+        // Act
+        var result = _merger.MergeDocuments([source], "Combined Service");
+        result.Paths["/extra"] = new OpenApiPathItem();
+        result.Components.Schemas["Extra"] = new OpenApiSchema { Type = JsonSchemaType.String };
+
+        // Assert
+        Assert.Single(source.Paths);
+        Assert.Single(source.Components.Schemas);
+    }
 }

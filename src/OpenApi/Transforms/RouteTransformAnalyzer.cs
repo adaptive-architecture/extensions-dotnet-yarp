@@ -34,7 +34,7 @@ public interface IRouteTransformAnalyzer
 /// <summary>
 /// Implementation of route transform analyzer.
 /// </summary>
-public class RouteTransformAnalyzer : IRouteTransformAnalyzer
+public sealed class RouteTransformAnalyzer : IRouteTransformAnalyzer
 {
     private const string CatchAllWithSlash = "/{**catch-all}";
     private const string CatchAll = "{**catch-all}";

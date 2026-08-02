@@ -156,6 +156,49 @@ public class OpenApiDocumentFetcherTests
         Assert.Null(document);
     }
 
+    [Fact]
+    public async Task FetchDocumentAsync_WithCancelledToken_PropagatesCancellation()
+    {
+        // Arrange: caller cancellation must propagate instead of being swallowed
+        // and logged as a downstream timeout.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var handler = new FakeHttpMessageHandler(_ => throw new TaskCanceledException("cancelled", null, cts.Token));
+
+        var httpClientFactory = Substitute.For<IHttpClientFactory>();
+        httpClientFactory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler, disposeHandler: false));
+
+        var optionsMonitor = Substitute.For<IOptionsMonitor<OpenApiAggregationOptions>>();
+        optionsMonitor.CurrentValue.Returns(new OpenApiAggregationOptions { FallbackPaths = [] });
+
+        var fetcher = new OpenApiDocumentFetcher(
+            httpClientFactory,
+            new PassthroughHybridCache(),
+            optionsMonitor,
+            NullLogger<OpenApiDocumentFetcher>.Instance);
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fetcher.FetchDocumentAsync("http://localhost:5001", "/openapi.json", cts.Token));
+    }
+
+    /// <summary>
+    /// A cache that always executes the factory with the caller's token,
+    /// so cancellation behavior can be tested deterministically.
+    /// </summary>
+    private sealed class PassthroughHybridCache : HybridCache
+    {
+        public override ValueTask<T> GetOrCreateAsync<TState, T>(string key, TState state, Func<TState, CancellationToken, ValueTask<T>> factory, HybridCacheEntryOptions options = null, IEnumerable<string> tags = null, CancellationToken cancellationToken = default)
+            => factory(state, cancellationToken);
+
+        public override ValueTask RemoveAsync(string key, CancellationToken token = default) => default;
+
+        public override ValueTask RemoveByTagAsync(string tag, CancellationToken token = default) => default;
+
+        public override ValueTask SetAsync<T>(string key, T value, HybridCacheEntryOptions options = null, IEnumerable<string> tags = null, CancellationToken token = default) => default;
+    }
+
     private static OpenApiDocumentFetcher CreateFetcherWithResponse(string responseBody, long maxDocumentSizeBytes)
     {
         var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)

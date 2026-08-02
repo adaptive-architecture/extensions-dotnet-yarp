@@ -556,35 +556,42 @@ public class OpenApiAggregationMiddlewareTests
         await mockFetcher.Received(1).FetchDocumentAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    private static ServiceProvider BuildFullServiceProvider(out IOpenApiDocumentFetcher mockFetcher)
+    private static ServiceProvider BuildFullServiceProvider(
+        out IOpenApiDocumentFetcher mockFetcher,
+        Action<OpenApiAggregationOptions> configureOptions = null,
+        int clusterCount = 1,
+        Func<Task<OpenApiDocument>> fetchHandler = null)
     {
-        var routeConfig = new RouteConfig
+        var mappings = new List<RouteClusterMapping>();
+        for (var i = 0; i < clusterCount; i++)
         {
-            RouteId = "test-route",
-            ClusterId = "test-cluster",
-            Match = new RouteMatch { Path = "/test/{**catch-all}" }
-        };
-        var clusterConfig = new ClusterConfig
-        {
-            ClusterId = "test-cluster",
-            Destinations = new Dictionary<string, DestinationConfig>
+            var routeConfig = new RouteConfig
             {
-                ["primary"] = new DestinationConfig { Address = "http://localhost:5001" }
-            }
-        };
+                RouteId = $"test-route-{i}",
+                ClusterId = $"test-cluster-{i}",
+                Match = new RouteMatch { Path = $"/test{i}/{{**catch-all}}" }
+            };
+            var clusterConfig = new ClusterConfig
+            {
+                ClusterId = $"test-cluster-{i}",
+                Destinations = new Dictionary<string, DestinationConfig>
+                {
+                    ["primary"] = new DestinationConfig { Address = $"http://localhost:500{i}" }
+                }
+            };
+            mappings.Add(new RouteClusterMapping
+            {
+                Route = routeConfig,
+                Cluster = clusterConfig,
+                RouteOpenApiConfig = new AdaOpenApiRouteConfig { ServiceName = "TestService" },
+                ClusterOpenApiConfig = new AdaOpenApiClusterConfig()
+            });
+        }
+
         var serviceSpec = new ServiceSpecification
         {
             ServiceName = "TestService",
-            Routes =
-            [
-                new RouteClusterMapping
-                {
-                    Route = routeConfig,
-                    Cluster = clusterConfig,
-                    RouteOpenApiConfig = new AdaOpenApiRouteConfig { ServiceName = "TestService" },
-                    ClusterOpenApiConfig = new AdaOpenApiClusterConfig()
-                }
-            ]
+            Routes = mappings
         };
 
         var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
@@ -592,10 +599,14 @@ public class OpenApiAggregationMiddlewareTests
 
         var fetcher = Substitute.For<IOpenApiDocumentFetcher>();
         fetcher.FetchDocumentAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<OpenApiDocument>(null));
+            .Returns(_ => fetchHandler != null ? fetchHandler() : Task.FromResult<OpenApiDocument>(null));
 
         var services = new ServiceCollection();
         services.AddOptions();
+        if (configureOptions != null)
+        {
+            services.Configure(configureOptions);
+        }
         services.AddHybridCache();
         services.AddSingleton(mockServiceAnalyzer);
         services.AddSingleton(fetcher);
@@ -606,6 +617,62 @@ public class OpenApiAggregationMiddlewareTests
 
         mockFetcher = fetcher;
         return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_UsesConfiguredDefaultOpenApiPath()
+    {
+        // Arrange: a cluster without an explicit OpenApiPath must fall back to the
+        // configured OpenApiAggregationOptions.DefaultOpenApiPath.
+        var serviceProvider = BuildFullServiceProvider(
+            out var mockFetcher,
+            configureOptions: o => o.DefaultOpenApiPath = "/custom/openapi.json");
+
+        var context = CreateHttpContext("/api-docs/TestService");
+        context.RequestServices = serviceProvider;
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        await mockFetcher.Received(1).FetchDocumentAsync(Arg.Any<string>(), "/custom/openapi.json", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_LimitsConcurrentClusterFetches()
+    {
+        // Arrange: 4 clusters with MaxConcurrentFetches = 2 must fetch in parallel,
+        // but never more than 2 at a time.
+        var concurrent = 0;
+        var maxConcurrent = 0;
+
+        var serviceProvider = BuildFullServiceProvider(
+            out _,
+            configureOptions: o => o.MaxConcurrentFetches = 2,
+            clusterCount: 4,
+            fetchHandler: async () =>
+            {
+                var current = Interlocked.Increment(ref concurrent);
+                int snapshot;
+                do
+                {
+                    snapshot = Volatile.Read(ref maxConcurrent);
+                }
+                while (current > snapshot && Interlocked.CompareExchange(ref maxConcurrent, current, snapshot) != snapshot);
+
+                await Task.Delay(250);
+                _ = Interlocked.Decrement(ref concurrent);
+                return null;
+            });
+
+        var context = CreateHttpContext("/api-docs/TestService");
+        context.RequestServices = serviceProvider;
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(2, maxConcurrent);
     }
 
     #endregion

@@ -1,5 +1,6 @@
 ﻿using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 
@@ -22,18 +23,22 @@ public interface IServiceSpecificationAnalyzer
 public sealed partial class ServiceSpecificationAnalyzer : IServiceSpecificationAnalyzer
 {
     private readonly IYarpOpenApiConfigurationReader _configReader;
+    private readonly IOptionsMonitor<OpenApiAggregationOptions> _optionsMonitor;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ServiceSpecificationAnalyzer"/> class.
     /// </summary>
     /// <param name="configReader">The YARP OpenAPI configuration reader.</param>
+    /// <param name="optionsMonitor">The options monitor for configuration.</param>
     /// <param name="logger">The logger instance.</param>
     public ServiceSpecificationAnalyzer(
         IYarpOpenApiConfigurationReader configReader,
+        IOptionsMonitor<OpenApiAggregationOptions> optionsMonitor,
         ILogger<ServiceSpecificationAnalyzer> logger)
     {
         _configReader = configReader;
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
 
@@ -58,9 +63,13 @@ public sealed partial class ServiceSpecificationAnalyzer : IServiceSpecification
     [LoggerMessage(Level = LogLevel.Information, Message = "Service specification created: '{serviceName}' with {routeCount} route(s)")]
     private partial void LogServiceSpecificationCreated(string serviceName, int routeCount);
 
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Route {routeId} skipped: cluster {clusterId} has no Ada.OpenApi metadata and auto-discovery is disabled")]
+    private partial void LogRouteClusterNotDiscoverable(string routeId, string clusterId);
+
     /// <inheritdoc/>
     public IReadOnlyList<ServiceSpecification> AnalyzeServices()
     {
+        var options = _optionsMonitor.CurrentValue;
         var routes = _configReader.GetAllRoutes().ToList();
         var clusters = _configReader.GetAllClusters().ToList();
 
@@ -107,8 +116,18 @@ public sealed partial class ServiceSpecificationAnalyzer : IServiceSpecification
                 continue;
             }
 
-            // Read cluster OpenAPI config (or use defaults)
-            var clusterConfig = _configReader.GetClusterOpenApiConfig(route.ClusterId) ?? new AdaOpenApiClusterConfig();
+            // Read cluster OpenAPI config (or use defaults when auto-discovery is enabled)
+            var clusterConfig = _configReader.GetClusterOpenApiConfig(route.ClusterId);
+            if (clusterConfig == null)
+            {
+                if (!options.EnableAutoDiscovery)
+                {
+                    LogRouteClusterNotDiscoverable(route.RouteId, route.ClusterId);
+                    continue;
+                }
+
+                clusterConfig = new AdaOpenApiClusterConfig();
+            }
 
             // Create mapping
             var mapping = new RouteClusterMapping

@@ -170,6 +170,12 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
             LogFetchSuccess(fullUrl);
             return document;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Genuine caller cancellation (e.g. client disconnect) must propagate,
+            // not be misreported as a downstream timeout.
+            throw;
+        }
         catch (TaskCanceledException ex)
         {
             LogTimeout(fullUrl, ex);

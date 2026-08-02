@@ -116,9 +116,9 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
         return mergedDocument;
     }
 
-    private static OpenApiDocument CreateMergedDocument(OpenApiDocument source, string serviceName)
+    private OpenApiDocument CreateMergedDocument(OpenApiDocument source, string serviceName)
     {
-        return new OpenApiDocument
+        var mergedDocument = new OpenApiDocument
         {
             Info = new OpenApiInfo
             {
@@ -128,12 +128,26 @@ public sealed partial class OpenApiMerger : IOpenApiMerger
                 Contact = source.Info?.Contact
             },
             Servers = source.Servers != null ? new List<OpenApiServer>(source.Servers) : [],
-            Paths = source.Paths,
-            Components = source.Components,
+            Paths = [],
+            Components = new OpenApiComponents(),
             Security = source.Security != null ? new List<OpenApiSecurityRequirement>(source.Security) : [],
             Tags = source.Tags != null ? new HashSet<OpenApiTag>(source.Tags) : [],
             ExternalDocs = source.ExternalDocs
         };
+
+        // Copy paths and components instead of aliasing the source collections,
+        // so mutations on the merged document cannot corrupt the source (and vice versa).
+        if (source.Paths != null)
+        {
+            foreach (var (path, pathItem) in source.Paths)
+            {
+                mergedDocument.Paths[path] = pathItem;
+            }
+        }
+
+        MergeComponents([source], mergedDocument.Components);
+
+        return mergedDocument;
     }
 
     private static OpenApiInfo CreateMergedInfo(List<OpenApiDocument> documents, string serviceName)

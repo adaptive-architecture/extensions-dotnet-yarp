@@ -728,13 +728,14 @@ public class YarpOpenApiConfigurationReaderTests
     }
 
     [Fact]
-    public void GetClusterOpenApiConfig_WithDefaultOpenApiPath_UsesDefault()
+    public void GetClusterOpenApiConfig_WithoutOpenApiPath_LeavesPathUnset()
     {
         // Arrange
         var clusterConfig = new AdaOpenApiClusterConfig
         {
             Prefix = "UserService"
-            // OpenApiPath not specified - should default
+            // OpenApiPath not specified - stays null; the middleware applies
+            // OpenApiAggregationOptions.DefaultOpenApiPath at aggregation time.
         };
         var metadataJson = JsonSerializer.Serialize(clusterConfig, SerializeOptions);
 
@@ -761,7 +762,7 @@ public class YarpOpenApiConfigurationReaderTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("/swagger/v1/swagger.json", result.OpenApiPath);
+        Assert.Null(result.OpenApiPath);
         Assert.Equal("UserService", result.Prefix);
     }
 

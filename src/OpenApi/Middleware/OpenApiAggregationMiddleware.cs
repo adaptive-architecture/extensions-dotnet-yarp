@@ -25,7 +25,6 @@ public sealed partial class OpenApiAggregationMiddleware
     private const string OpenApiJsonSuffix = "/openapi.json";
     private const string OpenApiYamlSuffix = "/openapi.yaml";
     private const string OpenApiYmlSuffix = "/openapi.yml";
-    private const string DefaultOpenApiPath = "/swagger/v1/swagger.json";
     private const string InternalServerErrorMessage = "Internal server error";
     private const int MaxServiceNameLength = 256;
 
@@ -330,39 +329,59 @@ public sealed partial class OpenApiAggregationMiddleware
         ServiceSpecification serviceSpec,
         CancellationToken cancellationToken)
     {
-        var processedDocuments = new List<OpenApiDocument>();
-
         // Resolve services once outside the loop for better performance
         var documentFetcher = serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>();
         var reachabilityAnalyzer = serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>();
         var documentPruner = serviceProvider.GetRequiredService<IOpenApiDocumentPruner>();
         var schemaRenamer = serviceProvider.GetRequiredService<ISchemaRenamer>();
+        var options = serviceProvider.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>().CurrentValue;
 
         // Group routes by cluster to avoid fetching the same document multiple times
-        var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId);
+        var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId).ToList();
 
-        foreach (var clusterGroup in clusterGroups)
+        // Process clusters in parallel, bounded by MaxConcurrentFetches
+        using var fetchSemaphore = new SemaphoreSlim(Math.Max(1, options.MaxConcurrentFetches));
+
+        var clusterTasks = clusterGroups.Select(async clusterGroup =>
         {
+            await fetchSemaphore.WaitAsync(cancellationToken);
             try
             {
-                var document = await ProcessClusterRoutesAsync(
+                return await ProcessClusterRoutesAsync(
                     documentFetcher,
                     reachabilityAnalyzer,
                     documentPruner,
                     schemaRenamer,
+                    options,
                     clusterGroup.Key,
                     [.. clusterGroup],
                     cancellationToken);
-
-                if (document != null)
-                {
-                    processedDocuments.Add(document);
-                    LogClusterProcessed(clusterGroup.Key);
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 LogClusterProcessingError(clusterGroup.Key, ex);
+                return null;
+            }
+            finally
+            {
+                _ = fetchSemaphore.Release();
+            }
+        });
+
+        var documents = await Task.WhenAll(clusterTasks);
+
+        // Preserve cluster order for deterministic merging
+        var processedDocuments = new List<OpenApiDocument>();
+        for (var i = 0; i < clusterGroups.Count; i++)
+        {
+            if (documents[i] != null)
+            {
+                processedDocuments.Add(documents[i]!);
+                LogClusterProcessed(clusterGroups[i].Key);
             }
         }
 
@@ -378,6 +397,7 @@ public sealed partial class OpenApiAggregationMiddleware
         IPathReachabilityAnalyzer reachabilityAnalyzer,
         IOpenApiDocumentPruner documentPruner,
         ISchemaRenamer schemaRenamer,
+        OpenApiAggregationOptions options,
         string clusterId,
         List<RouteClusterMapping> routeMappings,
         CancellationToken cancellationToken)
@@ -391,7 +411,11 @@ public sealed partial class OpenApiAggregationMiddleware
             return null;
         }
 
-        var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath ?? DefaultOpenApiPath;
+        var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath;
+        if (String.IsNullOrWhiteSpace(openApiPath))
+        {
+            openApiPath = options.DefaultOpenApiPath;
+        }
         var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
 
         if (document == null)

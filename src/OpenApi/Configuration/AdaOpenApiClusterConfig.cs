@@ -9,10 +9,10 @@ public class AdaOpenApiClusterConfig
     /// Gets or sets the path to the OpenAPI document on the downstream service.
     /// </summary>
     /// <remarks>
-    /// Defaults to "/swagger/v1/swagger.json" if not specified.
-    /// This is the standard path used by ASP.NET Core with Swashbuckle.
+    /// When not specified, <see cref="OpenApiAggregationOptions.DefaultOpenApiPath"/> is used
+    /// (defaults to "/swagger/v1/swagger.json", the standard ASP.NET Core with Swashbuckle path).
     /// </remarks>
-    public string OpenApiPath { get; set; } = "/swagger/v1/swagger.json";
+    public string? OpenApiPath { get; set; }
 
     /// <summary>
     /// Gets or sets the prefix to apply to schema and tag names to avoid collisions during merging.
