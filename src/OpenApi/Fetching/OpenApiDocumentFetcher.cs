@@ -143,6 +143,9 @@ public sealed partial class OpenApiDocumentFetcher : IOpenApiDocumentFetcher
 
             using var httpClient = _httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromMilliseconds(options.DefaultFetchTimeoutMs);
+            // Reject oversized downstream documents while buffering; exceeding the limit
+            // surfaces as an HttpRequestException and the fetch fails cleanly.
+            httpClient.MaxResponseContentBufferSize = options.MaxDocumentSizeBytes;
 
             using var response = await httpClient.GetAsync(fullUrl, cancellationToken);
 

@@ -178,7 +178,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
         var patternWithoutCatchAll = pattern.Replace(CatchAllWithSlash, "").Replace(CatchAll, "");
         var routeWithoutCatchAll = routePattern.Replace(CatchAllWithSlash, "").Replace(CatchAll, "");
 
-        if (downstreamPath.StartsWith(patternWithoutCatchAll))
+        if (downstreamPath.StartsWith(patternWithoutCatchAll, StringComparison.Ordinal))
         {
             var remainder = downstreamPath[patternWithoutCatchAll.Length..];
             return routeWithoutCatchAll + remainder;
@@ -195,7 +195,7 @@ public class RouteTransformAnalyzer : IRouteTransformAnalyzer
         }
 
         // PathPrefix adds a prefix going forward, so reverse removes it
-        if (downstreamPath.StartsWith(prefix))
+        if (downstreamPath.StartsWith(prefix, StringComparison.Ordinal))
         {
             var pathWithoutPrefix = downstreamPath[prefix.Length..];
 

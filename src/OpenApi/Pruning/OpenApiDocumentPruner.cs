@@ -173,14 +173,14 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         return pathItem;
     }
 
-    private static void AnalyzeOperationSchemas(OpenApiOperation operation, Queue<string> schemasToAnalyze)
+    private static void AnalyzeOperationSchemas(OpenApiOperation operation, Queue<string> schemasToAnalyze, HashSet<IOpenApiSchema> visitedSchemas)
     {
         // Check request body
         if (operation.RequestBody?.Content != null)
         {
             foreach (var mediaType in operation.RequestBody.Content.Values)
             {
-                AddSchemaReferences(mediaType.Schema, schemasToAnalyze);
+                AddSchemaReferences(mediaType.Schema, schemasToAnalyze, visitedSchemas);
             }
         }
 
@@ -189,7 +189,7 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         {
             foreach (var parameter in operation.Parameters)
             {
-                AddSchemaReferences(parameter.Schema, schemasToAnalyze);
+                AddSchemaReferences(parameter.Schema, schemasToAnalyze, visitedSchemas);
             }
         }
 
@@ -200,7 +200,7 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
                 .Where(r => r.Content != null)
                 .SelectMany(r => r.Content!.Values.Select(m => m.Schema)))
             {
-                AddSchemaReferences(schema, schemasToAnalyze);
+                AddSchemaReferences(schema, schemasToAnalyze, visitedSchemas);
             }
         }
     }
@@ -209,16 +209,19 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
     {
         var usedSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var schemasToAnalyze = new Queue<string>();
+        // Tracks already-walked schema instances so cyclic or shared inline schemas
+        // (possible in hostile or in-memory documents) cannot cause endless traversal.
+        var visitedSchemas = new HashSet<IOpenApiSchema>(ReferenceEqualityComparer.Instance);
 
         // Step 1: Find all directly referenced schemas from operations
         foreach (var operation in paths.Values
             .Where(p => p.Operations != null)
             .SelectMany(p => p.Operations!.Values))
         {
-            AnalyzeOperationSchemas(operation, schemasToAnalyze);
+            AnalyzeOperationSchemas(operation, schemasToAnalyze, visitedSchemas);
         }
 
-        // Step 2: Process queue and find nested schema references (recursive)
+        // Step 2: Process queue and find nested schema references
         while (schemasToAnalyze.Count > 0)
         {
             var schemaName = schemasToAnalyze.Dequeue();
@@ -230,7 +233,7 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
                 // Look up the schema in the components and analyze its nested references
                 if (componentSchemas != null && componentSchemas.TryGetValue(schemaName, out var schema))
                 {
-                    AddSchemaReferences(schema, schemasToAnalyze);
+                    AddSchemaReferences(schema, schemasToAnalyze, visitedSchemas);
                 }
             }
         }
@@ -238,66 +241,74 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
         return usedSchemas;
     }
 
-    private static void AddSchemaList(IEnumerable<IOpenApiSchema> schemas, Queue<string> schemasToAnalyze)
-    {
-        foreach (var s in schemas)
-        {
-            AddSchemaReferences(s, schemasToAnalyze);
-        }
-    }
-
-    private static void AddSchemaReferences(IOpenApiSchema? schema, Queue<string> schemasToAnalyze)
+    private static void AddSchemaReferences(IOpenApiSchema? schema, Queue<string> schemasToAnalyze, HashSet<IOpenApiSchema> visitedSchemas)
     {
         if (schema == null) return;
 
-        // Direct reference - In v3, references are separate types
-        if (schema is OpenApiSchemaReference schemaRef && schemaRef.Reference != null)
+        // Iterative traversal with a visited set: immune to both deep nesting
+        // (no stack growth) and inline schema cycles (each instance walked once).
+        var pending = new Stack<IOpenApiSchema>();
+        pending.Push(schema);
+
+        while (pending.Count > 0)
         {
-            var refId = schemaRef.Reference.Id;
-            if (!String.IsNullOrWhiteSpace(refId))
+            var current = pending.Pop();
+            if (!visitedSchemas.Add(current))
             {
-                schemasToAnalyze.Enqueue(refId);
+                continue;
+            }
+
+            // Direct reference - In v3, references are separate types
+            if (current is OpenApiSchemaReference schemaRef && schemaRef.Reference != null)
+            {
+                var refId = schemaRef.Reference.Id;
+                if (!String.IsNullOrWhiteSpace(refId))
+                {
+                    schemasToAnalyze.Enqueue(refId);
+                }
+            }
+
+            // Array items
+            if (current.Items != null)
+            {
+                pending.Push(current.Items);
+            }
+
+            // Object properties
+            if (current.Properties != null)
+            {
+                foreach (var property in current.Properties.Values)
+                {
+                    pending.Push(property);
+                }
+            }
+
+            // AllOf, OneOf, AnyOf
+            PushAll(pending, current.AllOf);
+            PushAll(pending, current.OneOf);
+            PushAll(pending, current.AnyOf);
+
+            // Not schema
+            if (current.Not != null)
+            {
+                pending.Push(current.Not);
+            }
+
+            // Additional properties
+            if (current.AdditionalProperties != null)
+            {
+                pending.Push(current.AdditionalProperties);
             }
         }
+    }
 
-        // Array items
-        if (schema.Items != null)
-        {
-            AddSchemaReferences(schema.Items, schemasToAnalyze);
-        }
+    private static void PushAll(Stack<IOpenApiSchema> pending, IList<IOpenApiSchema>? schemas)
+    {
+        if (schemas == null) return;
 
-        // Object properties
-        if (schema.Properties != null)
+        foreach (var schema in schemas)
         {
-            AddSchemaList(schema.Properties.Values, schemasToAnalyze);
-        }
-
-        // AllOf, OneOf, AnyOf
-        if (schema.AllOf != null)
-        {
-            AddSchemaList(schema.AllOf, schemasToAnalyze);
-        }
-
-        if (schema.OneOf != null)
-        {
-            AddSchemaList(schema.OneOf, schemasToAnalyze);
-        }
-
-        if (schema.AnyOf != null)
-        {
-            AddSchemaList(schema.AnyOf, schemasToAnalyze);
-        }
-
-        // Not schema
-        if (schema.Not != null)
-        {
-            AddSchemaReferences(schema.Not, schemasToAnalyze);
-        }
-
-        // Additional properties
-        if (schema.AdditionalProperties != null)
-        {
-            AddSchemaReferences(schema.AdditionalProperties, schemasToAnalyze);
+            pending.Push(schema);
         }
     }
 

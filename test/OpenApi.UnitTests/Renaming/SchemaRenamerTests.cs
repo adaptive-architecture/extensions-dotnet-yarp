@@ -798,4 +798,87 @@ public class SchemaRenamerTests
         Assert.Single(traceLogs);
         Assert.Contains("Renamed schema: SingleSchema -> MyServiceSingleSchema", traceLogs[0].Message);
     }
+
+    [Fact]
+    public void ApplyPrefix_WithCyclicInlineSchema_ThrowsInvalidOperationException()
+    {
+        // Arrange: an inline (non-$ref) schema referencing itself must be rejected with a
+        // catchable exception instead of overflowing the stack.
+        var cyclicSchema = new OpenApiSchema { Type = JsonSchemaType.Object };
+        cyclicSchema.Properties = new Dictionary<string, IOpenApiSchema>
+        {
+            ["self"] = cyclicSchema
+        };
+
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["Cyclic"] = cyclicSchema
+                }
+            }
+        };
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => _renamer.ApplyPrefix(document, "MyService"));
+    }
+
+    [Fact]
+    public void ApplyPrefix_WithExcessivelyDeepSchema_ThrowsInvalidOperationException()
+    {
+        // Arrange: a pathologically deep inline schema chain must hit a depth guard
+        // instead of overflowing the stack.
+        IOpenApiSchema chain = new OpenApiSchema { Type = JsonSchemaType.String };
+        for (var i = 0; i < 10_000; i++)
+        {
+            chain = new OpenApiSchema { Type = JsonSchemaType.Array, Items = chain };
+        }
+
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["Deep"] = chain
+                }
+            }
+        };
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => _renamer.ApplyPrefix(document, "MyService"));
+    }
+
+    [Fact]
+    public void ApplyPrefix_SchemasDifferingOnlyByCase_RenamesBoth()
+    {
+        // Arrange: OpenAPI schema names are case-sensitive; "user" and "User" are distinct.
+        var document = new OpenApiDocument
+        {
+            Info = new OpenApiInfo { Title = "Test API", Version = "1.0" },
+            Paths = [],
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["user"] = new OpenApiSchema { Type = JsonSchemaType.Object },
+                    ["User"] = new OpenApiSchema { Type = JsonSchemaType.Object }
+                }
+            }
+        };
+
+        // Act
+        var result = _renamer.ApplyPrefix(document, "Svc");
+
+        // Assert
+        Assert.Equal(2, result.Components.Schemas.Count);
+        Assert.True(result.Components.Schemas.ContainsKey("Svcuser"));
+        Assert.True(result.Components.Schemas.ContainsKey("SvcUser"));
+    }
 }
