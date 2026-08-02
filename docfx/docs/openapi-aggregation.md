@@ -81,14 +81,21 @@ When registered with `app.UseYarpOpenApiAggregation("/api-docs")`, the middlewar
 
 Service names support both their original format and kebab-case (e.g., both `User Management` and `user-management` work).
 
+## Securing the Endpoints
+
+The aggregated documentation describes your internal API surface, and the middleware itself performs no authentication or authorization. Treat `/api-docs` like any other sensitive endpoint:
+
+- Register `UseYarpOpenApiAggregation()` **after** `UseAuthentication()`/`UseAuthorization()` in the pipeline, or place it behind an authorizing gateway route, so unauthenticated clients cannot enumerate your services.
+- If you expose cache invalidation endpoints (see [Caching](openapi-caching.md)), protect them with `.RequireAuthorization(...)` — anonymous invalidation lets anyone force repeated downstream fetches.
+- Error responses are intentionally generic (`Internal server error`); diagnostic details are only written to the logs.
+
 ## Package Dependencies
 
 The OpenAPI aggregation extension builds on:
 
-- **[YARP](https://github.com/microsoft/reverse-proxy)** (v2.3.0) - Microsoft's reverse proxy library
-- **[Microsoft.OpenApi](https://github.com/microsoft/OpenAPI.NET)** (v3.1.2) - OpenAPI document model
-- **[Microsoft.Extensions.Caching.Hybrid](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid)** (v10.1.0) - High-performance caching
-- **[YamlDotNet](https://github.com/aaubry/YamlDotNet)** (v16.3.0) - YAML serialization for OpenAPI output
+- **[YARP](https://github.com/microsoft/reverse-proxy)** - Microsoft's reverse proxy library
+- **[Microsoft.OpenApi](https://github.com/microsoft/OpenAPI.NET)** - OpenAPI document model (including YAML output)
+- **[Microsoft.Extensions.Caching.Hybrid](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/hybrid)** - High-performance caching
 
 ## Module Identifier
 

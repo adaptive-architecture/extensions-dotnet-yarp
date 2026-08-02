@@ -33,9 +33,10 @@ options.MaximumCachePayloadBytes = 2 * 1024 * 1024; // 2 MB
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `DefaultOpenApiPath` | `string` | `/swagger/v1/swagger.json` | Default path to the OpenAPI document on downstream services |
+| `DefaultOpenApiPath` | `string` | `/swagger/v1/swagger.json` | Default path to the OpenAPI document on downstream services (used when a cluster does not set `OpenApiPath`) |
 | `MaxConcurrentFetches` | `int` | 10 | Maximum number of concurrent HTTP requests to downstream services |
 | `DefaultFetchTimeoutMs` | `int` | 10,000 (10 sec) | Timeout in milliseconds for each downstream fetch request |
+| `MaxDocumentSizeBytes` | `long` | 10,485,760 (10 MB) | Maximum size of a downstream OpenAPI document; larger responses are rejected before parsing |
 | `FallbackPaths` | `string[]` | See below | Additional paths to try if the primary path fails |
 
 **Default fallback paths:**
@@ -175,7 +176,7 @@ Clusters are configured with the `Ada.OpenApi` metadata key containing a JSON st
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `OpenApiPath` | `string` | `/swagger/v1/swagger.json` | Path to the OpenAPI spec on the downstream service |
+| `OpenApiPath` | `string?` | `null` | Path to the OpenAPI spec on the downstream service; falls back to `DefaultOpenApiPath` when not set |
 | `Prefix` | `string?` | `null` | Prefix for schema and tag names to avoid collisions |
 
 ### Example
@@ -218,6 +219,7 @@ builder.Services.AddYarpOpenApiAggregation(options =>
     options.DefaultOpenApiPath = "/swagger/v1/swagger.json";
     options.MaxConcurrentFetches = 10;
     options.DefaultFetchTimeoutMs = 10_000;
+    options.MaxDocumentSizeBytes = 10 * 1024 * 1024;
     options.FallbackPaths =
     [
         "/api/v1/openapi.json",
