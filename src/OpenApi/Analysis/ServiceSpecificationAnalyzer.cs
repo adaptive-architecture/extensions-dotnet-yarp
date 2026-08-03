@@ -1,6 +1,7 @@
 ﻿using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.Analysis;
 
@@ -81,65 +82,14 @@ public sealed partial class ServiceSpecificationAnalyzer : IServiceSpecification
 
         foreach (var route in routes)
         {
-            // Read route OpenAPI config
-            var routeConfig = _configReader.GetRouteOpenApiConfig(route.RouteId);
-            if (routeConfig == null)
+            var mapping = TryCreateMapping(route, clusterLookup, options);
+            if (mapping == null)
             {
-                LogRouteNoMetadata(route.RouteId);
                 continue;
             }
-
-            // Skip disabled routes
-            if (!routeConfig.Enabled)
-            {
-                LogRouteDisabled(route.RouteId);
-                continue;
-            }
-
-            // Validate service name
-            if (String.IsNullOrWhiteSpace(routeConfig.ServiceName))
-            {
-                LogRouteEmptyServiceName(route.RouteId);
-                continue;
-            }
-
-            // Lookup cluster
-            if (String.IsNullOrWhiteSpace(route.ClusterId))
-            {
-                LogRouteNoClusterId(route.RouteId);
-                continue;
-            }
-
-            if (!clusterLookup.TryGetValue(route.ClusterId, out var cluster))
-            {
-                LogRouteInvalidCluster(route.RouteId, route.ClusterId);
-                continue;
-            }
-
-            // Read cluster OpenAPI config (or use defaults when auto-discovery is enabled)
-            var clusterConfig = _configReader.GetClusterOpenApiConfig(route.ClusterId);
-            if (clusterConfig == null)
-            {
-                if (!options.EnableAutoDiscovery)
-                {
-                    LogRouteClusterNotDiscoverable(route.RouteId, route.ClusterId);
-                    continue;
-                }
-
-                clusterConfig = new AdaOpenApiClusterConfig();
-            }
-
-            // Create mapping
-            var mapping = new RouteClusterMapping
-            {
-                Route = route,
-                Cluster = cluster,
-                RouteOpenApiConfig = routeConfig,
-                ClusterOpenApiConfig = clusterConfig
-            };
 
             // Add to service group
-            var serviceName = routeConfig.ServiceName;
+            var serviceName = mapping.RouteOpenApiConfig.ServiceName!;
             if (!serviceGroups.TryGetValue(serviceName, out var mappings))
             {
                 mappings = [];
@@ -164,5 +114,71 @@ public sealed partial class ServiceSpecificationAnalyzer : IServiceSpecification
         }
 
         return specifications;
+    }
+
+    /// <summary>
+    /// Validates a single route against its metadata and cluster; returns the
+    /// route-to-cluster mapping or null when the route does not participate in aggregation.
+    /// </summary>
+    private RouteClusterMapping? TryCreateMapping(
+        RouteConfig route,
+        Dictionary<string, ClusterConfig> clusterLookup,
+        OpenApiAggregationOptions options)
+    {
+        // Read route OpenAPI config
+        var routeConfig = _configReader.GetRouteOpenApiConfig(route.RouteId);
+        if (routeConfig == null)
+        {
+            LogRouteNoMetadata(route.RouteId);
+            return null;
+        }
+
+        // Skip disabled routes
+        if (!routeConfig.Enabled)
+        {
+            LogRouteDisabled(route.RouteId);
+            return null;
+        }
+
+        // Validate service name
+        if (String.IsNullOrWhiteSpace(routeConfig.ServiceName))
+        {
+            LogRouteEmptyServiceName(route.RouteId);
+            return null;
+        }
+
+        // Lookup cluster
+        if (String.IsNullOrWhiteSpace(route.ClusterId))
+        {
+            LogRouteNoClusterId(route.RouteId);
+            return null;
+        }
+
+        if (!clusterLookup.TryGetValue(route.ClusterId, out var cluster))
+        {
+            LogRouteInvalidCluster(route.RouteId, route.ClusterId);
+            return null;
+        }
+
+        // Read cluster OpenAPI config (or use defaults when auto-discovery is enabled)
+        var clusterConfig = _configReader.GetClusterOpenApiConfig(route.ClusterId);
+        if (clusterConfig == null)
+        {
+            if (!options.EnableAutoDiscovery)
+            {
+                LogRouteClusterNotDiscoverable(route.RouteId, route.ClusterId);
+                return null;
+            }
+
+            clusterConfig = new AdaOpenApiClusterConfig();
+        }
+
+        return new RouteClusterMapping
+        {
+            Route = route,
+            Cluster = cluster,
+            RouteOpenApiConfig = routeConfig,
+            ClusterOpenApiConfig = clusterConfig
+        };
     }
 }

@@ -321,6 +321,16 @@ public sealed partial class OpenApiAggregationMiddleware
     }
 
     /// <summary>
+    /// Services and options resolved once per aggregation and shared across cluster processing.
+    /// </summary>
+    private sealed record AggregationContext(
+        IOpenApiDocumentFetcher DocumentFetcher,
+        IPathReachabilityAnalyzer ReachabilityAnalyzer,
+        IOpenApiDocumentPruner DocumentPruner,
+        ISchemaRenamer SchemaRenamer,
+        OpenApiAggregationOptions Options);
+
+    /// <summary>
     /// Processes all routes for a service specification, grouped by cluster.
     /// Routes sharing the same cluster fetch the OpenAPI document once and analyze reachability across all routes.
     /// </summary>
@@ -330,17 +340,18 @@ public sealed partial class OpenApiAggregationMiddleware
         CancellationToken cancellationToken)
     {
         // Resolve services once outside the loop for better performance
-        var documentFetcher = serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>();
-        var reachabilityAnalyzer = serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>();
-        var documentPruner = serviceProvider.GetRequiredService<IOpenApiDocumentPruner>();
-        var schemaRenamer = serviceProvider.GetRequiredService<ISchemaRenamer>();
-        var options = serviceProvider.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>().CurrentValue;
+        var aggregation = new AggregationContext(
+            serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>(),
+            serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>(),
+            serviceProvider.GetRequiredService<IOpenApiDocumentPruner>(),
+            serviceProvider.GetRequiredService<ISchemaRenamer>(),
+            serviceProvider.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>().CurrentValue);
 
         // Group routes by cluster to avoid fetching the same document multiple times
         var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId).ToList();
 
         // Process clusters in parallel, bounded by MaxConcurrentFetches
-        using var fetchSemaphore = new SemaphoreSlim(Math.Max(1, options.MaxConcurrentFetches));
+        using var fetchSemaphore = new SemaphoreSlim(Math.Max(1, aggregation.Options.MaxConcurrentFetches));
 
         var clusterTasks = clusterGroups.Select(async clusterGroup =>
         {
@@ -348,11 +359,7 @@ public sealed partial class OpenApiAggregationMiddleware
             try
             {
                 return await ProcessClusterRoutesAsync(
-                    documentFetcher,
-                    reachabilityAnalyzer,
-                    documentPruner,
-                    schemaRenamer,
-                    options,
+                    aggregation,
                     clusterGroup.Key,
                     [.. clusterGroup],
                     cancellationToken);
@@ -393,11 +400,7 @@ public sealed partial class OpenApiAggregationMiddleware
     /// analyzes reachability across all routes, prunes, and applies prefix.
     /// </summary>
     private async Task<OpenApiDocument?> ProcessClusterRoutesAsync(
-        IOpenApiDocumentFetcher documentFetcher,
-        IPathReachabilityAnalyzer reachabilityAnalyzer,
-        IOpenApiDocumentPruner documentPruner,
-        ISchemaRenamer schemaRenamer,
-        OpenApiAggregationOptions options,
+        AggregationContext aggregation,
         string clusterId,
         List<RouteClusterMapping> routeMappings,
         CancellationToken cancellationToken)
@@ -414,9 +417,9 @@ public sealed partial class OpenApiAggregationMiddleware
         var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath;
         if (String.IsNullOrWhiteSpace(openApiPath))
         {
-            openApiPath = options.DefaultOpenApiPath;
+            openApiPath = aggregation.Options.DefaultOpenApiPath;
         }
-        var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
+        var document = await aggregation.DocumentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
 
         if (document == null)
         {
@@ -427,10 +430,10 @@ public sealed partial class OpenApiAggregationMiddleware
         LogFetchedDocument(document.Paths?.Count ?? 0);
 
         // Analyze reachability across all routes for this cluster at once
-        var reachabilityResult = reachabilityAnalyzer.AnalyzePathReachability(document, routeMappings);
+        var reachabilityResult = aggregation.ReachabilityAnalyzer.AnalyzePathReachability(document, routeMappings);
         LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
 
-        var prunedDocument = documentPruner.PruneDocument(document, reachabilityResult);
+        var prunedDocument = aggregation.DocumentPruner.PruneDocument(document, reachabilityResult);
 
         if (prunedDocument == null)
         {
@@ -440,7 +443,7 @@ public sealed partial class OpenApiAggregationMiddleware
 
         LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
 
-        return ApplySchemaPrefix(schemaRenamer, prunedDocument, firstMapping, clusterId);
+        return ApplySchemaPrefix(aggregation.SchemaRenamer, prunedDocument, firstMapping, clusterId);
     }
 
     /// <summary>

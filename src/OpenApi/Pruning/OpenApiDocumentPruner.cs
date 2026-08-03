@@ -258,51 +258,57 @@ public sealed partial class OpenApiDocumentPruner : IOpenApiDocumentPruner
                 continue;
             }
 
-            // Direct reference - In v3, references are separate types
-            if (current is OpenApiSchemaReference schemaRef && schemaRef.Reference != null)
-            {
-                var refId = schemaRef.Reference.Id;
-                if (!String.IsNullOrWhiteSpace(refId))
-                {
-                    schemasToAnalyze.Enqueue(refId);
-                }
-            }
+            EnqueueSchemaReference(current, schemasToAnalyze);
+            PushChildSchemas(pending, current);
+        }
+    }
 
-            // Array items
-            if (current.Items != null)
+    private static void EnqueueSchemaReference(IOpenApiSchema schema, Queue<string> schemasToAnalyze)
+    {
+        // Direct reference - In v3, references are separate types
+        if (schema is OpenApiSchemaReference schemaRef && schemaRef.Reference != null)
+        {
+            var refId = schemaRef.Reference.Id;
+            if (!String.IsNullOrWhiteSpace(refId))
             {
-                pending.Push(current.Items);
-            }
-
-            // Object properties
-            if (current.Properties != null)
-            {
-                foreach (var property in current.Properties.Values)
-                {
-                    pending.Push(property);
-                }
-            }
-
-            // AllOf, OneOf, AnyOf
-            PushAll(pending, current.AllOf);
-            PushAll(pending, current.OneOf);
-            PushAll(pending, current.AnyOf);
-
-            // Not schema
-            if (current.Not != null)
-            {
-                pending.Push(current.Not);
-            }
-
-            // Additional properties
-            if (current.AdditionalProperties != null)
-            {
-                pending.Push(current.AdditionalProperties);
+                schemasToAnalyze.Enqueue(refId);
             }
         }
     }
 
-    private static void PushAll(Stack<IOpenApiSchema> pending, IList<IOpenApiSchema>? schemas)
+    private static void PushChildSchemas(Stack<IOpenApiSchema> pending, IOpenApiSchema current)
+    {
+        // Array items
+        if (current.Items != null)
+        {
+            pending.Push(current.Items);
+        }
+
+        // Object properties
+        if (current.Properties != null)
+        {
+            PushAll(pending, current.Properties.Values);
+        }
+
+        // AllOf, OneOf, AnyOf
+        PushAll(pending, current.AllOf);
+        PushAll(pending, current.OneOf);
+        PushAll(pending, current.AnyOf);
+
+        // Not schema
+        if (current.Not != null)
+        {
+            pending.Push(current.Not);
+        }
+
+        // Additional properties
+        if (current.AdditionalProperties != null)
+        {
+            pending.Push(current.AdditionalProperties);
+        }
+    }
+
+    private static void PushAll(Stack<IOpenApiSchema> pending, IEnumerable<IOpenApiSchema>? schemas)
     {
         if (schemas == null) return;
 
