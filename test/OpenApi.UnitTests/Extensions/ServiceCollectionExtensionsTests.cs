@@ -93,6 +93,26 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(provider.GetRequiredService<IHttpClientFactory>());
     }
 
+    [Fact]
+    public void AddYarpOpenApiAggregation_RegistersSourceGeneratedCacheWrapperSerializer()
+    {
+        var services = new ServiceCollection();
+
+        services.AddYarpOpenApiAggregation();
+
+        using var provider = services.BuildServiceProvider();
+
+        var serializer = provider.GetService<IHybridCacheSerializer<OpenApiDocumentCacheWrapper>>();
+        Assert.NotNull(serializer);
+
+        // Round-trip through the serializer
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        serializer.Serialize(new OpenApiDocumentCacheWrapper { Json = "{\"openapi\":\"3.0.1\"}" }, buffer);
+        var roundTripped = serializer.Deserialize(new System.Buffers.ReadOnlySequence<byte>(buffer.WrittenMemory));
+
+        Assert.Equal("{\"openapi\":\"3.0.1\"}", roundTripped.Json);
+    }
+
     private static void AssertContainsSingleton<TService, TImplementation>(IServiceCollection services)
     {
         var descriptor = Assert.Single(services, d => d.ServiceType == typeof(TService));

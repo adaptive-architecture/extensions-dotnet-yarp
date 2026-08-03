@@ -239,17 +239,15 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
                 continue;
             }
 
-            // Check if this backend path is reachable through this route
-            if (_transformAnalyzer.IsPathReachable(mapping.Route, backendPath))
+            // Map the backend path through this route; a non-empty result means it is
+            // reachable (avoids analyzing the route twice via IsPathReachable + Map).
+            var gatewayPath = _transformAnalyzer.MapBackendToGatewayPath(mapping.Route, backendPath);
+            if (!String.IsNullOrWhiteSpace(gatewayPath))
             {
-                var gatewayPath = _transformAnalyzer.MapBackendToGatewayPath(mapping.Route, backendPath);
-                if (!String.IsNullOrWhiteSpace(gatewayPath))
-                {
-                    AddReachablePath(reachablePaths, gatewayPath, backendPath, operations, mapping, analysis);
-                    foundReachableRoute = true;
-                    LogPathReachable(backendPath, mapping.Route.RouteId, gatewayPath);
-                    break;
-                }
+                AddReachablePath(reachablePaths, gatewayPath, backendPath, operations, mapping, analysis);
+                foundReachableRoute = true;
+                LogPathReachable(backendPath, mapping.Route.RouteId, gatewayPath);
+                break;
             }
         }
 

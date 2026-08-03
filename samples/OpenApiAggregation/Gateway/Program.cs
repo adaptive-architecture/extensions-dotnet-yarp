@@ -32,7 +32,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Use YARP OpenAPI Aggregation middleware
+// Use YARP OpenAPI Aggregation middleware.
+// SECURITY: the aggregated documentation lists your internal API surface. In production,
+// register this middleware AFTER UseAuthentication()/UseAuthorization() (or front it with
+// an authorizing endpoint) so /api-docs is not exposed anonymously.
 app.UseYarpOpenApiAggregation("/api-docs");
 
 // Configure Swagger UI to display aggregated OpenAPI specs
@@ -52,7 +55,10 @@ app.UseSwaggerUI(options =>
     ];
 });
 
-// Optional: Add cache invalidation endpoints for testing/admin purposes
+// Optional: Add cache invalidation endpoints for testing/admin purposes.
+// SECURITY: these endpoints are unauthenticated here for demo purposes only. In production,
+// protect them with .RequireAuthorization(...) or remove them entirely — anonymous cache
+// invalidation lets anyone force repeated downstream fetches.
 app.MapPost("/admin/cache/invalidate/{serviceName}", async (
     string serviceName,
     IOpenApiCacheInvalidator invalidator) =>

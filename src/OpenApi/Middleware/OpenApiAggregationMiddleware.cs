@@ -25,7 +25,8 @@ public sealed partial class OpenApiAggregationMiddleware
     private const string OpenApiJsonSuffix = "/openapi.json";
     private const string OpenApiYamlSuffix = "/openapi.yaml";
     private const string OpenApiYmlSuffix = "/openapi.yml";
-    private const string DefaultOpenApiPath = "/swagger/v1/swagger.json";
+    private const string InternalServerErrorMessage = "Internal server error";
+    private const int MaxServiceNameLength = 256;
 
     private readonly RequestDelegate _next;
     private readonly string _basePath;
@@ -58,8 +59,10 @@ public sealed partial class OpenApiAggregationMiddleware
     {
         var path = context.Request.Path.Value ?? String.Empty;
 
-        // Check if request matches our base path
-        if (!path.StartsWith(_basePath, StringComparison.OrdinalIgnoreCase))
+        // Check if request matches our base path; the character after the base path must be a
+        // segment boundary so that e.g. "/api-docsomething" is not treated as "/api-docs".
+        if (!path.StartsWith(_basePath, StringComparison.OrdinalIgnoreCase)
+            || (path.Length > _basePath.Length && path[_basePath.Length] != '/' && !_basePath.EndsWith('/')))
         {
             await _next(context);
             return;
@@ -128,8 +131,9 @@ public sealed partial class OpenApiAggregationMiddleware
             LogServiceListRequestError(ex);
             context.Response.StatusCode = 500;
             // Reporting the failure must not itself be cancelled: the token may already be
-            // the cause of the exception we are reporting.
-            await context.Response.WriteAsync($"Internal server error: {ex.Message}", CancellationToken.None);
+            // the cause of the exception we are reporting. The body stays generic so no
+            // exception details leak to the client; details are in the log.
+            await context.Response.WriteAsync(InternalServerErrorMessage, CancellationToken.None);
         }
     }
 
@@ -153,11 +157,23 @@ public sealed partial class OpenApiAggregationMiddleware
             // Normalize service name (URL decode and normalize case)
             serviceName = Uri.UnescapeDataString(serviceName);
 
-            // Validate service name to prevent path traversal attacks
-            if (serviceName.Contains("..") || serviceName.Contains('/') || serviceName.Contains('\\'))
+            // Validate service name to prevent path traversal and abusive input
+            if (!IsValidServiceName(serviceName))
             {
                 context.Response.StatusCode = 400;
                 await context.Response.WriteAsync("Invalid service name", context.RequestAborted);
+                return;
+            }
+
+            // Resolve the service against the configured YARP services before touching the
+            // cache so that arbitrary request paths cannot create cache entries.
+            var serviceAnalyzer = context.RequestServices.GetRequiredService<IServiceSpecificationAnalyzer>();
+            var serviceSpec = FindServiceSpecification(serviceAnalyzer, serviceName);
+            if (serviceSpec == null)
+            {
+                LogServiceNotFound(serviceName);
+                context.Response.StatusCode = 404;
+                await context.Response.WriteAsync("Service not found", context.RequestAborted);
                 return;
             }
 
@@ -165,9 +181,11 @@ public sealed partial class OpenApiAggregationMiddleware
             var cache = context.RequestServices.GetRequiredService<HybridCache>();
             var optionsMonitor = context.RequestServices.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>();
 
-            // Use HybridCache with automatic stampede protection
-            var cacheKey = $"openapi_spec_{serviceName}";
-            var tags = new[] { "openapi_spec", $"service:{serviceName}" };
+            // Key the cache by the canonical (configured) service name so request-path
+            // variants ("TestService", "testservice", …) share a single entry.
+            var canonicalName = serviceSpec.ServiceName;
+            var cacheKey = $"openapi_spec_{canonicalName}";
+            var tags = new[] { "openapi_spec", $"service:{canonicalName}" };
 
             var options = optionsMonitor.CurrentValue;
             var entryOptions = new HybridCacheEntryOptions
@@ -176,13 +194,16 @@ public sealed partial class OpenApiAggregationMiddleware
                 LocalCacheExpiration = options.AggregatedSpecCacheDuration
             };
 
-            // Use wrapper to serialize OpenApiDocument as JSON string for caching
+            // Use wrapper to serialize OpenApiDocument as JSON string for caching.
+            // A wrapper without Json marks a failed aggregation (negative cache entry).
+            var aggregationRan = false;
             var wrapper = await cache.GetOrCreateAsync(
                 cacheKey,
                 async cancel =>
                 {
-                    var doc = await AggregateServiceSpecificationAsync(context.RequestServices, serviceName, cancel);
-                    return doc == null ? null : await OpenApiDocumentCacheWrapper.FromDocumentAsync(doc, cancel);
+                    aggregationRan = true;
+                    var doc = await AggregateServiceSpecificationAsync(context.RequestServices, serviceSpec, cancel);
+                    return doc == null ? new OpenApiDocumentCacheWrapper() : await OpenApiDocumentCacheWrapper.FromDocumentAsync(doc, cancel);
                 },
                 entryOptions,
                 tags,
@@ -193,9 +214,23 @@ public sealed partial class OpenApiAggregationMiddleware
 
             if (aggregatedDoc == null)
             {
-                LogServiceNotFound(serviceName);
+                if (aggregationRan)
+                {
+                    // Replace the freshly cached failure with a short-lived entry so a broken
+                    // downstream is retried after FailureCacheDuration instead of the full
+                    // aggregated-spec duration. Not cancelled by the client: the entry must be
+                    // written even if the request is aborted.
+                    var failureEntryOptions = new HybridCacheEntryOptions
+                    {
+                        Expiration = options.FailureCacheDuration,
+                        LocalCacheExpiration = options.FailureCacheDuration
+                    };
+                    await cache.SetAsync(cacheKey, new OpenApiDocumentCacheWrapper(), failureEntryOptions, tags, CancellationToken.None);
+                }
+
+                LogServiceNotFound(canonicalName);
                 context.Response.StatusCode = 404;
-                await context.Response.WriteAsync($"Service '{serviceName}' not found or failed to aggregate", context.RequestAborted);
+                await context.Response.WriteAsync("Service not found or failed to aggregate", context.RequestAborted);
                 return;
             }
 
@@ -214,8 +249,9 @@ public sealed partial class OpenApiAggregationMiddleware
             LogSpecRequestError(serviceName, ex);
             context.Response.StatusCode = 500;
             // Reporting the failure must not itself be cancelled: the token may already be
-            // the cause of the exception we are reporting.
-            await context.Response.WriteAsync($"Internal server error: {ex.Message}", CancellationToken.None);
+            // the cause of the exception we are reporting. The body stays generic so no
+            // exception details leak to the client; details are in the log.
+            await context.Response.WriteAsync(InternalServerErrorMessage, CancellationToken.None);
         }
     }
 
@@ -223,24 +259,17 @@ public sealed partial class OpenApiAggregationMiddleware
     /// Aggregates the OpenAPI specification for a specific service.
     /// </summary>
     /// <param name="serviceProvider">The service provider to resolve dependencies.</param>
-    /// <param name="serviceName">The name of the service to aggregate.</param>
+    /// <param name="serviceSpec">The already-resolved service specification to aggregate.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     private async Task<OpenApiDocument?> AggregateServiceSpecificationAsync(
         IServiceProvider serviceProvider,
-        string serviceName,
+        ServiceSpecification serviceSpec,
         CancellationToken cancellationToken)
     {
+        var serviceName = serviceSpec.ServiceName;
         LogStartingAggregation(serviceName);
 
-        var serviceAnalyzer = serviceProvider.GetRequiredService<IServiceSpecificationAnalyzer>();
         var documentMerger = serviceProvider.GetRequiredService<IOpenApiMerger>();
-
-        var serviceSpec = FindServiceSpecification(serviceAnalyzer, serviceName);
-        if (serviceSpec == null)
-        {
-            LogServiceSpecNotFound(serviceName);
-            return null;
-        }
 
         LogFoundRoutes(serviceSpec.Routes.Count, serviceName);
 
@@ -278,6 +307,30 @@ public sealed partial class OpenApiAggregationMiddleware
     }
 
     /// <summary>
+    /// Validates a request-supplied service name: rejects path traversal sequences,
+    /// separators, control characters, and abusive lengths.
+    /// </summary>
+    private static bool IsValidServiceName(string serviceName)
+    {
+        return !String.IsNullOrWhiteSpace(serviceName)
+            && serviceName.Length <= MaxServiceNameLength
+            && !serviceName.Contains("..", StringComparison.Ordinal)
+            && !serviceName.Contains('/')
+            && !serviceName.Contains('\\')
+            && !serviceName.Any(Char.IsControl);
+    }
+
+    /// <summary>
+    /// Services and options resolved once per aggregation and shared across cluster processing.
+    /// </summary>
+    private sealed record AggregationContext(
+        IOpenApiDocumentFetcher DocumentFetcher,
+        IPathReachabilityAnalyzer ReachabilityAnalyzer,
+        IOpenApiDocumentPruner DocumentPruner,
+        ISchemaRenamer SchemaRenamer,
+        OpenApiAggregationOptions Options);
+
+    /// <summary>
     /// Processes all routes for a service specification, grouped by cluster.
     /// Routes sharing the same cluster fetch the OpenAPI document once and analyze reachability across all routes.
     /// </summary>
@@ -286,39 +339,56 @@ public sealed partial class OpenApiAggregationMiddleware
         ServiceSpecification serviceSpec,
         CancellationToken cancellationToken)
     {
-        var processedDocuments = new List<OpenApiDocument>();
-
         // Resolve services once outside the loop for better performance
-        var documentFetcher = serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>();
-        var reachabilityAnalyzer = serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>();
-        var documentPruner = serviceProvider.GetRequiredService<IOpenApiDocumentPruner>();
-        var schemaRenamer = serviceProvider.GetRequiredService<ISchemaRenamer>();
+        var aggregation = new AggregationContext(
+            serviceProvider.GetRequiredService<IOpenApiDocumentFetcher>(),
+            serviceProvider.GetRequiredService<IPathReachabilityAnalyzer>(),
+            serviceProvider.GetRequiredService<IOpenApiDocumentPruner>(),
+            serviceProvider.GetRequiredService<ISchemaRenamer>(),
+            serviceProvider.GetRequiredService<IOptionsMonitor<OpenApiAggregationOptions>>().CurrentValue);
 
         // Group routes by cluster to avoid fetching the same document multiple times
-        var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId);
+        var clusterGroups = serviceSpec.Routes.GroupBy(r => r.Cluster.ClusterId).ToList();
 
-        foreach (var clusterGroup in clusterGroups)
+        // Process clusters in parallel, bounded by MaxConcurrentFetches
+        using var fetchSemaphore = new SemaphoreSlim(Math.Max(1, aggregation.Options.MaxConcurrentFetches));
+
+        var clusterTasks = clusterGroups.Select(async clusterGroup =>
         {
+            await fetchSemaphore.WaitAsync(cancellationToken);
             try
             {
-                var document = await ProcessClusterRoutesAsync(
-                    documentFetcher,
-                    reachabilityAnalyzer,
-                    documentPruner,
-                    schemaRenamer,
+                return await ProcessClusterRoutesAsync(
+                    aggregation,
                     clusterGroup.Key,
                     [.. clusterGroup],
                     cancellationToken);
-
-                if (document != null)
-                {
-                    processedDocuments.Add(document);
-                    LogClusterProcessed(clusterGroup.Key);
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 LogClusterProcessingError(clusterGroup.Key, ex);
+                return null;
+            }
+            finally
+            {
+                _ = fetchSemaphore.Release();
+            }
+        });
+
+        var documents = await Task.WhenAll(clusterTasks);
+
+        // Preserve cluster order for deterministic merging
+        var processedDocuments = new List<OpenApiDocument>();
+        for (var i = 0; i < clusterGroups.Count; i++)
+        {
+            if (documents[i] != null)
+            {
+                processedDocuments.Add(documents[i]!);
+                LogClusterProcessed(clusterGroups[i].Key);
             }
         }
 
@@ -330,10 +400,7 @@ public sealed partial class OpenApiAggregationMiddleware
     /// analyzes reachability across all routes, prunes, and applies prefix.
     /// </summary>
     private async Task<OpenApiDocument?> ProcessClusterRoutesAsync(
-        IOpenApiDocumentFetcher documentFetcher,
-        IPathReachabilityAnalyzer reachabilityAnalyzer,
-        IOpenApiDocumentPruner documentPruner,
-        ISchemaRenamer schemaRenamer,
+        AggregationContext aggregation,
         string clusterId,
         List<RouteClusterMapping> routeMappings,
         CancellationToken cancellationToken)
@@ -347,8 +414,12 @@ public sealed partial class OpenApiAggregationMiddleware
             return null;
         }
 
-        var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath ?? DefaultOpenApiPath;
-        var document = await documentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
+        var openApiPath = firstMapping.ClusterOpenApiConfig.OpenApiPath;
+        if (String.IsNullOrWhiteSpace(openApiPath))
+        {
+            openApiPath = aggregation.Options.DefaultOpenApiPath;
+        }
+        var document = await aggregation.DocumentFetcher.FetchDocumentAsync(baseUrl, openApiPath, cancellationToken);
 
         if (document == null)
         {
@@ -359,10 +430,10 @@ public sealed partial class OpenApiAggregationMiddleware
         LogFetchedDocument(document.Paths?.Count ?? 0);
 
         // Analyze reachability across all routes for this cluster at once
-        var reachabilityResult = reachabilityAnalyzer.AnalyzePathReachability(document, routeMappings);
+        var reachabilityResult = aggregation.ReachabilityAnalyzer.AnalyzePathReachability(document, routeMappings);
         LogPathReachability(reachabilityResult.ReachablePaths.Count, reachabilityResult.UnreachablePaths.Count);
 
-        var prunedDocument = documentPruner.PruneDocument(document, reachabilityResult);
+        var prunedDocument = aggregation.DocumentPruner.PruneDocument(document, reachabilityResult);
 
         if (prunedDocument == null)
         {
@@ -372,7 +443,7 @@ public sealed partial class OpenApiAggregationMiddleware
 
         LogPrunedDocument(prunedDocument.Paths?.Count ?? 0);
 
-        return ApplySchemaPrefix(schemaRenamer, prunedDocument, firstMapping, clusterId);
+        return ApplySchemaPrefix(aggregation.SchemaRenamer, prunedDocument, firstMapping, clusterId);
     }
 
     /// <summary>
@@ -453,6 +524,7 @@ public sealed partial class OpenApiAggregationMiddleware
         await streamWriter.FlushAsync(context.RequestAborted);
 
         memoryStream.Position = 0;
+        context.Response.ContentLength = memoryStream.Length;
         await memoryStream.CopyToAsync(context.Response.Body, context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
     }
@@ -473,6 +545,10 @@ public sealed partial class OpenApiAggregationMiddleware
         return acceptHeader.Contains("yaml", StringComparison.OrdinalIgnoreCase);
     }
 
+    // Only ever keyed by configured service names, so the cache is bounded by the
+    // YARP configuration size.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> KebabCaseCache = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Converts a string to kebab-case (lowercase with hyphens).
     /// Example: "User Management" -> "user-management"
@@ -485,10 +561,10 @@ public sealed partial class OpenApiAggregationMiddleware
         }
 
         // Replace spaces and underscores with hyphens, then lowercase
-        return value.Trim()
+        return KebabCaseCache.GetOrAdd(value, static v => v.Trim()
             .Replace(" ", "-")
             .Replace("_", "-")
-            .ToLowerInvariant();
+            .ToLowerInvariant());
     }
 
     /// <summary>
@@ -553,9 +629,6 @@ public sealed partial class OpenApiAggregationMiddleware
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Starting aggregation for service: {ServiceName}")]
     private partial void LogStartingAggregation(string serviceName);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Service specification not found: {ServiceName}")]
-    private partial void LogServiceSpecNotFound(string serviceName);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Found {RouteCount} routes for service: {ServiceName}")]
     private partial void LogFoundRoutes(int routeCount, string serviceName);

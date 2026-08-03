@@ -517,6 +517,88 @@ public class OpenApiDocumentPrunerTests
         Assert.Equal("https://docs.example.com/", pruned.ExternalDocs.Url.ToString());
     }
 
+    [Fact]
+    public void PruneDocument_WithCyclicInlineSchema_Completes()
+    {
+        // Arrange: an inline (non-$ref) schema referencing itself must not cause
+        // unbounded recursion during schema dependency analysis.
+        var cyclicSchema = new OpenApiSchema { Type = JsonSchemaType.Object };
+        cyclicSchema.Properties = new Dictionary<string, IOpenApiSchema>
+        {
+            ["self"] = cyclicSchema
+        };
+
+        var document = CreateDocumentWithPaths("/users");
+        var reachabilityResult = CreateReachabilityResult(
+            reachablePaths: new Dictionary<string, ReachablePathInfo>
+            {
+                ["/api/users"] = CreateReachablePathInfoWithSchema("/users", "/api/users", cyclicSchema)
+            }
+        );
+
+        // Act
+        var pruned = _pruner.PruneDocument(document, reachabilityResult);
+
+        // Assert
+        Assert.Single(pruned.Paths);
+    }
+
+    [Fact]
+    public void PruneDocument_WithExcessivelyDeepSchema_Completes()
+    {
+        // Arrange: a pathologically deep inline schema chain must not overflow the stack.
+        IOpenApiSchema chain = new OpenApiSchema { Type = JsonSchemaType.String };
+        for (var i = 0; i < 10_000; i++)
+        {
+            chain = new OpenApiSchema { Type = JsonSchemaType.Array, Items = chain };
+        }
+
+        var document = CreateDocumentWithPaths("/users");
+        var reachabilityResult = CreateReachabilityResult(
+            reachablePaths: new Dictionary<string, ReachablePathInfo>
+            {
+                ["/api/users"] = CreateReachablePathInfoWithSchema("/users", "/api/users", chain)
+            }
+        );
+
+        // Act
+        var pruned = _pruner.PruneDocument(document, reachabilityResult);
+
+        // Assert
+        Assert.Single(pruned.Paths);
+    }
+
+    private static ReachablePathInfo CreateReachablePathInfoWithSchema(string backendPath, string gatewayPath, IOpenApiSchema responseSchema)
+    {
+        var operation = new OpenApiOperation
+        {
+            OperationId = "GetOperation",
+            Responses = new OpenApiResponses
+            {
+                ["200"] = new OpenApiResponse
+                {
+                    Description = "OK",
+                    Content = new Dictionary<string, IOpenApiMediaType>
+                    {
+                        ["application/json"] = new OpenApiMediaType { Schema = responseSchema }
+                    }
+                }
+            }
+        };
+
+        return new ReachablePathInfo
+        {
+            BackendPath = backendPath,
+            GatewayPath = gatewayPath,
+            Operations = new Dictionary<HttpMethod, OpenApiOperation>
+            {
+                [HttpMethod.Get] = operation
+            },
+            RouteId = "test-route",
+            TransformAnalysis = new RouteTransformAnalysis { TransformType = TransformType.Direct }
+        };
+    }
+
     // Helper methods
     private static PathReachabilityResult CreateEmptyReachabilityResult()
     {

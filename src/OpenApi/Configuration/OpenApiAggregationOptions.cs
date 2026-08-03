@@ -75,6 +75,15 @@ public class OpenApiAggregationOptions
     public int MaximumCachePayloadBytes { get; set; } = 1024 * 1024;
 
     /// <summary>
+    /// Gets or sets the maximum size in bytes of an OpenAPI document fetched from a downstream service.
+    /// </summary>
+    /// <remarks>
+    /// Responses larger than this are rejected before parsing so a misbehaving or hostile
+    /// downstream service cannot exhaust gateway memory. Defaults to 10 MB.
+    /// </remarks>
+    public long MaxDocumentSizeBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
     /// Gets or sets the maximum number of concurrent document fetches.
     /// </summary>
     /// <remarks>

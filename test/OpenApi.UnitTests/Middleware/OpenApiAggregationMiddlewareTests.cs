@@ -1,11 +1,18 @@
 ﻿using AdaptArch.Extensions.Yarp.OpenApi.Analysis;
+using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
+using AdaptArch.Extensions.Yarp.OpenApi.Fetching;
+using AdaptArch.Extensions.Yarp.OpenApi.Merging;
 using AdaptArch.Extensions.Yarp.OpenApi.Middleware;
+using AdaptArch.Extensions.Yarp.OpenApi.Pruning;
+using AdaptArch.Extensions.Yarp.OpenApi.Renaming;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.OpenApi;
 using NSubstitute;
 using Xunit;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Middleware;
 
@@ -98,12 +105,12 @@ public class OpenApiAggregationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ServiceNotFound_Returns500()
+    public async Task InvokeAsync_ServiceNotFound_Returns404WithoutTouchingCache()
     {
-        // Arrange
+        // Arrange: only the analyzer is registered — an unknown service must be rejected
+        // before the cache (or any other dependency) is resolved.
         var context = CreateHttpContext("/api-docs/nonexistent-service");
 
-        // Mock service analyzer to return empty list (missing required dependencies causes exception)
         var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
         mockServiceAnalyzer.AnalyzeServices().Returns([]);
 
@@ -115,7 +122,30 @@ public class OpenApiAggregationMiddlewareTests
         await _middlewareWithTestLogger.InvokeAsync(context);
 
         // Assert
-        Assert.Equal(500, context.Response.StatusCode);
+        Assert.Equal(404, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceNotFound_DoesNotEchoServiceNameInResponse()
+    {
+        // Arrange
+        var context = CreateHttpContext("/api-docs/some-unknown-name");
+
+        var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
+        mockServiceAnalyzer.AnalyzeServices().Returns([]);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(mockServiceAnalyzer);
+        context.RequestServices = services.BuildServiceProvider();
+
+        // Act
+        await _middlewareWithTestLogger.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(404, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var responseBody = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("some-unknown-name", responseBody);
     }
 
     #endregion
@@ -423,6 +453,226 @@ public class OpenApiAggregationMiddlewareTests
         // Assert
         // Middleware should not call next middleware - it handles the request
         await _next.DidNotReceive().Invoke(Arg.Any<HttpContext>());
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    [Theory]
+    [InlineData("/api-docsomething")]
+    [InlineData("/api-docs2/my-service")]
+    [InlineData("/api-docs-internal")]
+    public async Task InvokeAsync_WithPathSharingBasePathPrefix_CallsNextMiddleware(string path)
+    {
+        // Arrange: paths that share the base path prefix but are not below it must pass through.
+        var context = CreateHttpContext(path);
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        await _next.Received(1).Invoke(context);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceListRequest_WithException_DoesNotLeakExceptionDetails()
+    {
+        // Arrange
+        var context = CreateHttpContext("/api-docs");
+        var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
+        mockServiceAnalyzer.AnalyzeServices().Returns(_ => throw new InvalidOperationException("sensitive connection string details"));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(mockServiceAnalyzer);
+        context.RequestServices = services.BuildServiceProvider();
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(500, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var responseBody = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("sensitive connection string details", responseBody);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_WithException_DoesNotLeakExceptionDetails()
+    {
+        // Arrange
+        var context = CreateHttpContext("/api-docs/test-service");
+        var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
+        mockServiceAnalyzer.AnalyzeServices().Returns(_ => throw new InvalidOperationException("sensitive connection string details"));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(mockServiceAnalyzer);
+        context.RequestServices = services.BuildServiceProvider();
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(500, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var responseBody = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("sensitive connection string details", responseBody);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_WithOverlongServiceName_ReturnsBadRequest()
+    {
+        // Arrange
+        var context = CreateHttpContext($"/api-docs/{new string('a', 1000)}");
+        var services = new ServiceCollection();
+        context.RequestServices = services.BuildServiceProvider();
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(400, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_CaseVariantsShareOneCacheEntry()
+    {
+        // Arrange: requests differing only in casing must resolve to the canonical service
+        // name so they share a single cache entry (and failed aggregations are cached too).
+        var serviceProvider = BuildFullServiceProvider(out var mockFetcher);
+
+        var context1 = CreateHttpContext("/api-docs/TestService");
+        context1.RequestServices = serviceProvider;
+        var context2 = CreateHttpContext("/api-docs/testservice");
+        context2.RequestServices = serviceProvider;
+
+        // Act
+        await _middleware.InvokeAsync(context1);
+        await _middleware.InvokeAsync(context2);
+
+        // Assert: both requests 404 (fetch fails) but aggregation ran only once.
+        Assert.Equal(404, context1.Response.StatusCode);
+        Assert.Equal(404, context2.Response.StatusCode);
+        await mockFetcher.Received(1).FetchDocumentAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    private static ServiceProvider BuildFullServiceProvider(
+        out IOpenApiDocumentFetcher mockFetcher,
+        Action<OpenApiAggregationOptions> configureOptions = null,
+        int clusterCount = 1,
+        Func<Task<OpenApiDocument>> fetchHandler = null)
+    {
+        var mappings = new List<RouteClusterMapping>();
+        for (var i = 0; i < clusterCount; i++)
+        {
+            var routeConfig = new RouteConfig
+            {
+                RouteId = $"test-route-{i}",
+                ClusterId = $"test-cluster-{i}",
+                Match = new RouteMatch { Path = $"/test{i}/{{**catch-all}}" }
+            };
+            var clusterConfig = new ClusterConfig
+            {
+                ClusterId = $"test-cluster-{i}",
+                Destinations = new Dictionary<string, DestinationConfig>
+                {
+                    ["primary"] = new DestinationConfig { Address = $"http://localhost:500{i}" }
+                }
+            };
+            mappings.Add(new RouteClusterMapping
+            {
+                Route = routeConfig,
+                Cluster = clusterConfig,
+                RouteOpenApiConfig = new AdaOpenApiRouteConfig { ServiceName = "TestService" },
+                ClusterOpenApiConfig = new AdaOpenApiClusterConfig()
+            });
+        }
+
+        var serviceSpec = new ServiceSpecification
+        {
+            ServiceName = "TestService",
+            Routes = mappings
+        };
+
+        var mockServiceAnalyzer = Substitute.For<IServiceSpecificationAnalyzer>();
+        mockServiceAnalyzer.AnalyzeServices().Returns([serviceSpec]);
+
+        var fetcher = Substitute.For<IOpenApiDocumentFetcher>();
+        fetcher.FetchDocumentAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ => fetchHandler != null ? fetchHandler() : Task.FromResult<OpenApiDocument>(null));
+
+        var services = new ServiceCollection();
+        services.AddOptions();
+        if (configureOptions != null)
+        {
+            services.Configure(configureOptions);
+        }
+        services.AddHybridCache();
+        services.AddSingleton(mockServiceAnalyzer);
+        services.AddSingleton(fetcher);
+        services.AddSingleton(Substitute.For<IOpenApiMerger>());
+        services.AddSingleton(Substitute.For<IPathReachabilityAnalyzer>());
+        services.AddSingleton(Substitute.For<IOpenApiDocumentPruner>());
+        services.AddSingleton(Substitute.For<ISchemaRenamer>());
+
+        mockFetcher = fetcher;
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_UsesConfiguredDefaultOpenApiPath()
+    {
+        // Arrange: a cluster without an explicit OpenApiPath must fall back to the
+        // configured OpenApiAggregationOptions.DefaultOpenApiPath.
+        var serviceProvider = BuildFullServiceProvider(
+            out var mockFetcher,
+            configureOptions: o => o.DefaultOpenApiPath = "/custom/openapi.json");
+
+        var context = CreateHttpContext("/api-docs/TestService");
+        context.RequestServices = serviceProvider;
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        await mockFetcher.Received(1).FetchDocumentAsync(Arg.Any<string>(), "/custom/openapi.json", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ServiceSpecRequest_LimitsConcurrentClusterFetches()
+    {
+        // Arrange: 4 clusters with MaxConcurrentFetches = 2 must fetch in parallel,
+        // but never more than 2 at a time.
+        var concurrent = 0;
+        var maxConcurrent = 0;
+
+        var serviceProvider = BuildFullServiceProvider(
+            out _,
+            configureOptions: o => o.MaxConcurrentFetches = 2,
+            clusterCount: 4,
+            fetchHandler: async () =>
+            {
+                var current = Interlocked.Increment(ref concurrent);
+                int snapshot;
+                do
+                {
+                    snapshot = Volatile.Read(ref maxConcurrent);
+                }
+                while (current > snapshot && Interlocked.CompareExchange(ref maxConcurrent, current, snapshot) != snapshot);
+
+                await Task.Delay(250);
+                _ = Interlocked.Decrement(ref concurrent);
+                return null;
+            });
+
+        var context = CreateHttpContext("/api-docs/TestService");
+        context.RequestServices = serviceProvider;
+
+        // Act
+        await _middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(2, maxConcurrent);
     }
 
     #endregion

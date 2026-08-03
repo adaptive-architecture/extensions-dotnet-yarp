@@ -2,6 +2,7 @@
 using AdaptArch.Extensions.Yarp.OpenApi.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
 using Yarp.ReverseProxy.Configuration;
@@ -18,7 +19,14 @@ public class ServiceSpecificationAnalyzerTests
     {
         _configReader = Substitute.For<IYarpOpenApiConfigurationReader>();
         _logger = NullLogger<ServiceSpecificationAnalyzer>.Instance;
-        _analyzer = new ServiceSpecificationAnalyzer(_configReader, _logger);
+        _analyzer = CreateAnalyzer(new OpenApiAggregationOptions());
+    }
+
+    private ServiceSpecificationAnalyzer CreateAnalyzer(OpenApiAggregationOptions options)
+    {
+        var optionsMonitor = Substitute.For<IOptionsMonitor<OpenApiAggregationOptions>>();
+        optionsMonitor.CurrentValue.Returns(options);
+        return new ServiceSpecificationAnalyzer(_configReader, optionsMonitor, _logger);
     }
 
     [Fact]
@@ -349,6 +357,74 @@ public class ServiceSpecificationAnalyzerTests
         Assert.Single(result);
         var spec = result[0];
         Assert.NotNull(spec.Routes[0].ClusterOpenApiConfig);
-        Assert.Equal("/swagger/v1/swagger.json", spec.Routes[0].ClusterOpenApiConfig.OpenApiPath);
+        Assert.Null(spec.Routes[0].ClusterOpenApiConfig.OpenApiPath);
+    }
+
+    [Fact]
+    public void AnalyzeServices_AutoDiscoveryDisabled_SkipsRoutesWithoutClusterMetadata()
+    {
+        // Arrange
+        var cluster = new ClusterConfig
+        {
+            ClusterId = "test-cluster",
+            Destinations = new Dictionary<string, DestinationConfig>
+            {
+                { "dest1", new DestinationConfig { Address = "http://localhost:8080" } }
+            }
+        };
+
+        var route = new RouteConfig
+        {
+            RouteId = "test-route",
+            ClusterId = "test-cluster",
+            Match = new RouteMatch { Path = "/api/test" }
+        };
+
+        _configReader.GetAllRoutes().Returns([route]);
+        _configReader.GetAllClusters().Returns([cluster]);
+        _configReader.GetRouteOpenApiConfig("test-route").Returns(new AdaOpenApiRouteConfig { ServiceName = "Test Service" });
+        _configReader.GetClusterOpenApiConfig("test-cluster").Returns((AdaOpenApiClusterConfig)null);
+
+        var analyzer = CreateAnalyzer(new OpenApiAggregationOptions { EnableAutoDiscovery = false });
+
+        // Act
+        var result = analyzer.AnalyzeServices();
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void AnalyzeServices_AutoDiscoveryDisabled_IncludesRoutesWithClusterMetadata()
+    {
+        // Arrange
+        var cluster = new ClusterConfig
+        {
+            ClusterId = "test-cluster",
+            Destinations = new Dictionary<string, DestinationConfig>
+            {
+                { "dest1", new DestinationConfig { Address = "http://localhost:8080" } }
+            }
+        };
+
+        var route = new RouteConfig
+        {
+            RouteId = "test-route",
+            ClusterId = "test-cluster",
+            Match = new RouteMatch { Path = "/api/test" }
+        };
+
+        _configReader.GetAllRoutes().Returns([route]);
+        _configReader.GetAllClusters().Returns([cluster]);
+        _configReader.GetRouteOpenApiConfig("test-route").Returns(new AdaOpenApiRouteConfig { ServiceName = "Test Service" });
+        _configReader.GetClusterOpenApiConfig("test-cluster").Returns(new AdaOpenApiClusterConfig { OpenApiPath = "/openapi.json" });
+
+        var analyzer = CreateAnalyzer(new OpenApiAggregationOptions { EnableAutoDiscovery = false });
+
+        // Act
+        var result = analyzer.AnalyzeServices();
+
+        // Assert
+        Assert.Single(result);
     }
 }

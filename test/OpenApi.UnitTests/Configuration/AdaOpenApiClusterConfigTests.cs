@@ -17,7 +17,8 @@ public class AdaOpenApiClusterConfigTests
         var config = new AdaOpenApiClusterConfig();
 
         // Assert
-        Assert.Equal("/swagger/v1/swagger.json", config.OpenApiPath);
+        // Unspecified: the effective default comes from OpenApiAggregationOptions.DefaultOpenApiPath.
+        Assert.Null(config.OpenApiPath);
         Assert.Null(config.Prefix);
     }
 
@@ -53,7 +54,7 @@ public class AdaOpenApiClusterConfigTests
 
         // Assert
         Assert.NotNull(deserialized);
-        Assert.Equal("/swagger/v1/swagger.json", deserialized.OpenApiPath);
+        Assert.Null(deserialized.OpenApiPath);
         Assert.Null(deserialized.Prefix);
     }
 }

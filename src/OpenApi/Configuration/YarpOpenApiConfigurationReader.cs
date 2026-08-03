@@ -62,6 +62,20 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     private readonly ILogger _logger;
     private readonly IConfiguration _configuration;
     private readonly string _sectionName;
+    private ConfigSnapshot? _snapshot;
+
+    /// <summary>
+    /// Parsed Ada.OpenApi metadata for a single YARP configuration snapshot.
+    /// Rebuilt whenever YARP publishes a new <see cref="IProxyConfig"/> instance, so the
+    /// per-lookup enumeration and JSON deserialization happen once per snapshot instead of
+    /// on every request.
+    /// </summary>
+    private sealed record ConfigSnapshot(
+        IProxyConfig Source,
+        IReadOnlyList<RouteConfig> Routes,
+        IReadOnlyList<ClusterConfig> Clusters,
+        Dictionary<string, AdaOpenApiRouteConfig?> RouteConfigs,
+        Dictionary<string, AdaOpenApiClusterConfig?> ClusterConfigs);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YarpOpenApiConfigurationReader"/> class.
@@ -81,60 +95,34 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     /// <inheritdoc/>
     public AdaOpenApiClusterConfig? GetClusterOpenApiConfig(string clusterId)
     {
-        var cluster = GetAllClusters().FirstOrDefault(c => c.ClusterId == clusterId);
-        if (cluster == null)
-        {
-            return null;
-        }
-
-        return GetAdaConfig(cluster.Metadata,
-            $"{_sectionName}:Clusters:{clusterId}:Metadata:{AdaOpenApiMetadataKey}",
-            $"cluster '{clusterId}'", OpenApiJsonContext.Default.AdaOpenApiClusterConfig,
-            s => s.Get<AdaOpenApiClusterConfig>());
+        return GetSnapshot().ClusterConfigs.GetValueOrDefault(clusterId);
     }
 
     /// <inheritdoc/>
     public AdaOpenApiRouteConfig? GetRouteOpenApiConfig(string routeId)
     {
-        var route = GetAllRoutes().FirstOrDefault(r => r.RouteId == routeId);
-        if (route == null)
-        {
-            return null;
-        }
-
-        return GetAdaConfig(route.Metadata,
-            $"{_sectionName}:Routes:{routeId}:Metadata:{AdaOpenApiMetadataKey}",
-            $"route '{routeId}'", OpenApiJsonContext.Default.AdaOpenApiRouteConfig,
-            s => s.Get<AdaOpenApiRouteConfig>());
+        return GetSnapshot().RouteConfigs.GetValueOrDefault(routeId);
     }
 
     /// <inheritdoc/>
     public IEnumerable<ClusterConfig> GetAllClusters()
     {
-        var config = _proxyConfigProvider.GetConfig();
-        return config.Clusters ?? Enumerable.Empty<ClusterConfig>();
+        return GetSnapshot().Clusters;
     }
 
     /// <inheritdoc/>
     public IEnumerable<RouteConfig> GetAllRoutes()
     {
-        var config = _proxyConfigProvider.GetConfig();
-        return config.Routes ?? Enumerable.Empty<RouteConfig>();
+        return GetSnapshot().Routes;
     }
 
     /// <inheritdoc/>
     public IEnumerable<(RouteConfig Route, AdaOpenApiRouteConfig AdaConfig)> GetAllRouteOpenApiConfigs()
     {
-        foreach (var route in GetAllRoutes())
+        var snapshot = GetSnapshot();
+        foreach (var route in snapshot.Routes)
         {
-            var adaConfig = GetAdaConfig(
-                route.Metadata,
-                $"{_sectionName}:Routes:{route.RouteId}:Metadata:{AdaOpenApiMetadataKey}",
-                $"route '{route.RouteId}'",
-                OpenApiJsonContext.Default.AdaOpenApiRouteConfig,
-                s => s.Get<AdaOpenApiRouteConfig>());
-
-            if (adaConfig != null)
+            if (snapshot.RouteConfigs.GetValueOrDefault(route.RouteId) is { } adaConfig)
             {
                 yield return (route, adaConfig);
             }
@@ -144,20 +132,59 @@ public sealed partial class YarpOpenApiConfigurationReader : IYarpOpenApiConfigu
     /// <inheritdoc/>
     public IEnumerable<(ClusterConfig Cluster, AdaOpenApiClusterConfig AdaConfig)> GetAllClusterOpenApiConfigs()
     {
-        foreach (var cluster in GetAllClusters())
+        var snapshot = GetSnapshot();
+        foreach (var cluster in snapshot.Clusters)
         {
-            var adaConfig = GetAdaConfig(
-                cluster.Metadata,
-                $"{_sectionName}:Clusters:{cluster.ClusterId}:Metadata:{AdaOpenApiMetadataKey}",
-                $"cluster '{cluster.ClusterId}'",
-                OpenApiJsonContext.Default.AdaOpenApiClusterConfig,
-                s => s.Get<AdaOpenApiClusterConfig>());
-
-            if (adaConfig != null)
+            if (snapshot.ClusterConfigs.GetValueOrDefault(cluster.ClusterId) is { } adaConfig)
             {
                 yield return (cluster, adaConfig);
             }
         }
+    }
+
+    private ConfigSnapshot GetSnapshot()
+    {
+        var config = _proxyConfigProvider.GetConfig();
+        var snapshot = Volatile.Read(ref _snapshot);
+        if (snapshot != null && ReferenceEquals(snapshot.Source, config))
+        {
+            return snapshot;
+        }
+
+        // Racing rebuilds are harmless: both produce equivalent snapshots for the same config.
+        snapshot = BuildSnapshot(config);
+        Volatile.Write(ref _snapshot, snapshot);
+        return snapshot;
+    }
+
+    private ConfigSnapshot BuildSnapshot(IProxyConfig config)
+    {
+        var routes = config.Routes ?? [];
+        var clusters = config.Clusters ?? [];
+
+        var routeConfigs = new Dictionary<string, AdaOpenApiRouteConfig?>(routes.Count, StringComparer.Ordinal);
+        foreach (var route in routes)
+        {
+            _ = routeConfigs.TryAdd(route.RouteId, GetAdaConfig(
+                route.Metadata,
+                $"{_sectionName}:Routes:{route.RouteId}:Metadata:{AdaOpenApiMetadataKey}",
+                $"route '{route.RouteId}'",
+                OpenApiJsonContext.Default.AdaOpenApiRouteConfig,
+                s => s.Get<AdaOpenApiRouteConfig>()));
+        }
+
+        var clusterConfigs = new Dictionary<string, AdaOpenApiClusterConfig?>(clusters.Count, StringComparer.Ordinal);
+        foreach (var cluster in clusters)
+        {
+            _ = clusterConfigs.TryAdd(cluster.ClusterId, GetAdaConfig(
+                cluster.Metadata,
+                $"{_sectionName}:Clusters:{cluster.ClusterId}:Metadata:{AdaOpenApiMetadataKey}",
+                $"cluster '{cluster.ClusterId}'",
+                OpenApiJsonContext.Default.AdaOpenApiClusterConfig,
+                s => s.Get<AdaOpenApiClusterConfig>()));
+        }
+
+        return new ConfigSnapshot(config, routes, clusters, routeConfigs, clusterConfigs);
     }
 
     private T? GetAdaConfig<T>(
