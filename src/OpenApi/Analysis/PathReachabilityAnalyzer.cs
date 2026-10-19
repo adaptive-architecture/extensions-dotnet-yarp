@@ -224,7 +224,7 @@ public sealed partial class PathReachabilityAnalyzer : IPathReachabilityAnalyzer
         Dictionary<string, UnreachablePathInfo> unreachablePaths,
         List<string> warnings)
     {
-        bool foundReachableRoute = false;
+        var foundReachableRoute = false;
 
         foreach (var mapping in mappingsList)
         {

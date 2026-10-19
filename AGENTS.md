@@ -31,7 +31,6 @@ dotnet build --no-incremental   # CI build without incremental
 ```bash
 sh ./pipeline/unit-test.sh      # Preferred: unit tests with coverage
 dotnet test                     # Run all tests
-dotnet test --filter "FullyQualifiedName!~AdaptArch.Extensions.Yarp.Samples"  # Exclude samples
 ```
 
 **Restore:**
@@ -144,6 +143,14 @@ This constitution supersedes all other development practices and guidelines. All
 - Consistent naming: `AdaptArch.Extensions.Yarp.<Module>`
 - Preview language features enabled (.NET 10)
 - Roslynator analyzers enforce style
+- **`var` for locals, keywords for declarations, BCL names only for static access**:
+  use `var` for every local variable the compiler accepts (`IDE0007`, error).
+  Write the language keyword everywhere else you write a type — fields, properties,
+  parameters, return types, generic arguments and casts: `string`, `int`, `bool`
+  (`IDE0049`, error). Use the BCL type name only for static member access
+  (`String.Empty`, `Int32.MaxValue`) and for `nameof(String)`, where the keyword is
+  not legal. Roslynator `RCS1013` is off, and `roslynator_use_var = always` keeps
+  `RCS1264` in agreement. CI runs `dotnet format --verify-no-changes`.
 
 ### Testing Patterns
 - TestContainers for integration tests with external dependencies

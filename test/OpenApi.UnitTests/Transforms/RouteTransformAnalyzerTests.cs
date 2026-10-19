@@ -1,6 +1,6 @@
 ﻿using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
-using Yarp.ReverseProxy.Configuration;
 using Xunit;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Transforms;
 

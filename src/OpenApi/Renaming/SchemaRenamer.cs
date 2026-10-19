@@ -394,7 +394,6 @@ public sealed partial class SchemaRenamer : ISchemaRenamer
             Description = parameter.Description,
             Required = parameter.Required,
             Deprecated = parameter.Deprecated,
-            AllowEmptyValue = parameter.AllowEmptyValue,
             Schema = UpdateSchemaReferences(parameter.Schema, context)
         };
     }
