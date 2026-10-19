@@ -1,6 +1,6 @@
 ﻿using AdaptArch.Extensions.Yarp.OpenApi.Transforms;
-using Yarp.ReverseProxy.Configuration;
 using Xunit;
+using Yarp.ReverseProxy.Configuration;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.UnitTests.Transforms;
 
@@ -209,8 +209,7 @@ public class RouteTransformAnalyzerTests
         Assert.NotNull(result);
         Assert.Equal(TransformType.PathPattern, result.TransformType);
         Assert.True(result.IsAnalyzable);
-        Assert.Single(result.Transforms);
-        Assert.Equal(TransformType.PathPattern, result.Transforms[0].Type);
+        Assert.Equal(TransformType.PathPattern, Assert.Single(result.Transforms).Type);
     }
 
     [Fact]
@@ -237,8 +236,7 @@ public class RouteTransformAnalyzerTests
 
         // Assert
         Assert.True(result.IsAnalyzable);
-        Assert.Single(result.Transforms);
-        Assert.Equal(TransformType.PathPrefix, result.Transforms[0].Type);
+        Assert.Equal(TransformType.PathPrefix, Assert.Single(result.Transforms).Type);
     }
 
     [Fact]

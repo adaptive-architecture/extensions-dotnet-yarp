@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Text.Json;
 using AdaptArch.Extensions.Yarp.OpenApi.Json;
 using Microsoft.Extensions.Caching.Hybrid;

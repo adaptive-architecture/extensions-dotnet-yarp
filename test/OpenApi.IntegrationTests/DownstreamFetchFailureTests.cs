@@ -1,11 +1,11 @@
 ﻿using System.Net;
 using System.Text;
+using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using AdaptArch.Extensions.Yarp.OpenApi.Extensions;
 using Xunit;
 
 namespace AdaptArch.Extensions.Yarp.OpenApi.IntegrationTests;
@@ -306,7 +306,7 @@ public class DownstreamFetchFailureTests : IAsyncLifetime
         await RestartBackendAsync();
 
         // Act - Make multiple failing requests
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             await _gatewayClient!.GetAsync("/api-docs/test-service", TestContext.Current.CancellationToken);
         }
