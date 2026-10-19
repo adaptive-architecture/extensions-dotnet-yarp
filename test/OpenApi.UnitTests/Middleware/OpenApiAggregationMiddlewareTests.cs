@@ -100,8 +100,8 @@ public class OpenApiAggregationMiddlewareTests
 
         // Assert
         var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
-        Assert.Single(debugLogs);
-        Assert.Contains("Handling service list request", debugLogs[0].Message);
+        var debugLog = Assert.Single(debugLogs);
+        Assert.Contains("Handling service list request", debugLog.Message);
     }
 
     [Fact]

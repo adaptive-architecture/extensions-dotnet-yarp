@@ -633,8 +633,8 @@ public class SchemaRenamerTests
         Assert.Equal("Test API", result.Info.Title);
         Assert.Equal("1.0", result.Info.Version);
         Assert.Equal("Test description", result.Info.Description);
-        Assert.Single(result.Servers);
-        Assert.Equal("http://localhost:8080", result.Servers[0].Url);
+        var server = Assert.Single(result.Servers);
+        Assert.Equal("http://localhost:8080", server.Url);
     }
 
     [Fact]
@@ -703,8 +703,8 @@ public class SchemaRenamerTests
         // Assert
         Assert.Same(document, result);
         var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
-        Assert.Single(debugLogs);
-        Assert.Contains("No prefix specified", debugLogs[0].Message);
+        var debugLog = Assert.Single(debugLogs);
+        Assert.Contains("No prefix specified", debugLog.Message);
     }
 
     [Fact]
@@ -723,8 +723,8 @@ public class SchemaRenamerTests
         // Assert
         Assert.Same(document, result);
         var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
-        Assert.Single(debugLogs);
-        Assert.Contains("No prefix specified", debugLogs[0].Message);
+        var debugLog = Assert.Single(debugLogs);
+        Assert.Contains("No prefix specified", debugLog.Message);
     }
 
     [Fact]
@@ -743,8 +743,8 @@ public class SchemaRenamerTests
 
         // Assert
         var infoLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Information).ToList();
-        Assert.Single(infoLogs);
-        Assert.Contains("Applying prefix 'TestPrefix'", infoLogs[0].Message);
+        var infoLog = Assert.Single(infoLogs);
+        Assert.Contains("Applying prefix 'TestPrefix'", infoLog.Message);
     }
 
     [Fact]
@@ -766,11 +766,11 @@ public class SchemaRenamerTests
         var infoLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Information).ToList();
         var debugLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Debug).ToList();
 
-        Assert.Single(infoLogs);
-        Assert.Contains("Applying prefix 'TestPrefix'", infoLogs[0].Message);
+        var infoLog = Assert.Single(infoLogs);
+        Assert.Contains("Applying prefix 'TestPrefix'", infoLog.Message);
 
-        Assert.Single(debugLogs);
-        Assert.Contains("No schemas to rename", debugLogs[0].Message);
+        var debugLog = Assert.Single(debugLogs);
+        Assert.Contains("No schemas to rename", debugLog.Message);
     }
 
     [Fact]
@@ -795,8 +795,8 @@ public class SchemaRenamerTests
 
         // Assert
         var traceLogs = _testLogger.LogEntries.Where(le => le.LogLevel == LogLevel.Trace).ToList();
-        Assert.Single(traceLogs);
-        Assert.Contains("Renamed schema: SingleSchema -> MyServiceSingleSchema", traceLogs[0].Message);
+        var traceLog = Assert.Single(traceLogs);
+        Assert.Contains("Renamed schema: SingleSchema -> MyServiceSingleSchema", traceLog.Message);
     }
 
     [Fact]

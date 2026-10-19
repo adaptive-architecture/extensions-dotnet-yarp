@@ -613,9 +613,9 @@ public class YarpOpenApiConfigurationReaderTests
         var result = reader.GetAllRouteOpenApiConfigs().ToList();
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal("valid-route", result[0].Route.RouteId);
-        Assert.Equal("ValidService", result[0].AdaConfig.ServiceName);
+        var item = Assert.Single(result);
+        Assert.Equal("valid-route", item.Route.RouteId);
+        Assert.Equal("ValidService", item.AdaConfig.ServiceName);
     }
 
     [Fact]
@@ -758,10 +758,10 @@ public class YarpOpenApiConfigurationReaderTests
         var result = reader.GetAllClusterOpenApiConfigs().ToList();
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal("valid-cluster", result[0].Cluster.ClusterId);
-        Assert.Equal("/api/spec.json", result[0].AdaConfig.OpenApiPath);
-        Assert.Equal("Valid", result[0].AdaConfig.Prefix);
+        var item = Assert.Single(result);
+        Assert.Equal("valid-cluster", item.Cluster.ClusterId);
+        Assert.Equal("/api/spec.json", item.AdaConfig.OpenApiPath);
+        Assert.Equal("Valid", item.AdaConfig.Prefix);
     }
 
     [Fact]

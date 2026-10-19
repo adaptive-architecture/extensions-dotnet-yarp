@@ -190,14 +190,13 @@ public class ServiceSpecificationAnalyzerTests
         var result = _analyzer.AnalyzeServices();
 
         // Assert
-        Assert.Single(result);
-        var spec = result[0];
+        var spec = Assert.Single(result);
         Assert.Equal("Test Service", spec.ServiceName);
-        Assert.Single(spec.Routes);
-        Assert.Equal("test-route", spec.Routes[0].Route.RouteId);
-        Assert.Equal("test-cluster", spec.Routes[0].Cluster.ClusterId);
-        Assert.Equal(routeConfig, spec.Routes[0].RouteOpenApiConfig);
-        Assert.Equal(clusterConfig, spec.Routes[0].ClusterOpenApiConfig);
+        var specRoute = Assert.Single(spec.Routes);
+        Assert.Equal("test-route", specRoute.Route.RouteId);
+        Assert.Equal("test-cluster", specRoute.Cluster.ClusterId);
+        Assert.Equal(routeConfig, specRoute.RouteOpenApiConfig);
+        Assert.Equal(clusterConfig, specRoute.ClusterOpenApiConfig);
     }
 
     [Fact]
@@ -249,8 +248,7 @@ public class ServiceSpecificationAnalyzerTests
         var result = _analyzer.AnalyzeServices();
 
         // Assert
-        Assert.Single(result);
-        var spec = result[0];
+        var spec = Assert.Single(result);
         Assert.Equal("Test Service", spec.ServiceName);
         Assert.Equal(2, spec.Routes.Count);
     }
@@ -354,8 +352,7 @@ public class ServiceSpecificationAnalyzerTests
         var result = _analyzer.AnalyzeServices();
 
         // Assert
-        Assert.Single(result);
-        var spec = result[0];
+        var spec = Assert.Single(result);
         Assert.NotNull(spec.Routes[0].ClusterOpenApiConfig);
         Assert.Null(spec.Routes[0].ClusterOpenApiConfig.OpenApiPath);
     }

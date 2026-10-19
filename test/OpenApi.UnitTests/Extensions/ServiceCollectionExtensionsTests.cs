@@ -59,8 +59,8 @@ public class ServiceCollectionExtensionsTests
             .Where(d => d.ServiceType == typeof(IOpenApiDocumentFetcher))
             .ToArray();
 
-        Assert.Single(descriptors);
-        Assert.Equal(typeof(CustomOpenApiDocumentFetcher), descriptors[0].ImplementationType);
+        var descriptor = Assert.Single(descriptors);
+        Assert.Equal(typeof(CustomOpenApiDocumentFetcher), descriptor.ImplementationType);
     }
 
     [Fact]

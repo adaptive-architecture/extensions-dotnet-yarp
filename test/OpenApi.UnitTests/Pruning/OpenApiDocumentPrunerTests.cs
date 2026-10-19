@@ -453,8 +453,8 @@ public class OpenApiDocumentPrunerTests
         var pruned = _pruner.PruneDocument(document, reachabilityResult);
 
         // Assert
-        Assert.Single(pruned.Tags);
-        Assert.Equal("Users", pruned.Tags.First().Name);
+        var tag = Assert.Single(pruned.Tags);
+        Assert.Equal("Users", tag.Name);
     }
 
     [Fact]
@@ -511,8 +511,8 @@ public class OpenApiDocumentPrunerTests
         Assert.Equal("Test API", pruned.Info.Title);
         Assert.Equal("1.0.0", pruned.Info.Version);
         Assert.Equal("Test API Description", pruned.Info.Description);
-        Assert.Single(pruned.Servers);
-        Assert.Equal("https://api.example.com", pruned.Servers[0].Url);
+        var server = Assert.Single(pruned.Servers);
+        Assert.Equal("https://api.example.com", server.Url);
         Assert.NotNull(pruned.ExternalDocs);
         Assert.Equal("https://docs.example.com/", pruned.ExternalDocs.Url.ToString());
     }
